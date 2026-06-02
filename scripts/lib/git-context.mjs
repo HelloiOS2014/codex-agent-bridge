@@ -132,6 +132,10 @@ export async function resolveBaselineRef(cwd, options = {}) {
     };
   }
 
+  if (options.scope === "working-tree") {
+    return emptyBaseline("scope-working-tree");
+  }
+
   const mergeBase = await gitStdout(repoRoot, ["merge-base", "HEAD", "origin/main"]);
   if (mergeBase) {
     return {

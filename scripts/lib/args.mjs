@@ -84,5 +84,8 @@ export function readPromptFromParsedInput(parsed, options = {}) {
   if (parsed.options["prompt-file"]) {
     return fs.readFileSync(path.resolve(options.cwd ?? process.cwd(), parsed.options["prompt-file"]), "utf8");
   }
+  if (typeof parsed.options.prompt === "string") {
+    return parsed.options.prompt;
+  }
   return parsed.positionals.join(" ").trim();
 }

@@ -2,27 +2,60 @@
 
 import { parseArgs } from "./lib/args.mjs";
 import { getClaudeStatus } from "./lib/claude.mjs";
+import { formatForegroundResult, runForegroundCommand } from "./lib/foreground.mjs";
 
 const COMMAND_CONFIG = {
   setup: { booleanOptions: ["json"], valueOptions: [] },
   plan: {
-    booleanOptions: ["background", "wait"],
-    valueOptions: ["model", "effort", "prompt-file"],
+    booleanOptions: ["background", "wait", "json"],
+    valueOptions: ["cwd", "prompt", "model", "effort", "prompt-file", "timeout", "timeout-ms"],
     exclusiveGroups: [["background", "wait"]]
   },
   review: {
     booleanOptions: ["background", "wait", "json"],
-    valueOptions: ["base", "scope"],
+    valueOptions: [
+      "cwd",
+      "base",
+      "against",
+      "scope",
+      "prompt",
+      "prompt-file",
+      "model",
+      "effort",
+      "timeout",
+      "timeout-ms",
+      "max-diff",
+      "max-diff-bytes",
+      "max-untracked",
+      "max-untracked-bytes",
+      "max-untracked-file-bytes"
+    ],
     exclusiveGroups: [["background", "wait"]]
   },
   "adversarial-review": {
-    booleanOptions: ["background", "wait"],
-    valueOptions: ["base", "scope", "prompt-file"],
+    booleanOptions: ["background", "wait", "json"],
+    valueOptions: [
+      "cwd",
+      "base",
+      "against",
+      "scope",
+      "prompt",
+      "prompt-file",
+      "model",
+      "effort",
+      "timeout",
+      "timeout-ms",
+      "max-diff",
+      "max-diff-bytes",
+      "max-untracked",
+      "max-untracked-bytes",
+      "max-untracked-file-bytes"
+    ],
     exclusiveGroups: [["background", "wait"]]
   },
   rescue: {
-    booleanOptions: ["background", "wait", "resume", "fresh", "write"],
-    valueOptions: ["model", "effort", "prompt-file"],
+    booleanOptions: ["background", "wait", "resume", "fresh", "write", "json"],
+    valueOptions: ["cwd", "prompt", "model", "effort", "prompt-file", "timeout", "timeout-ms"],
     exclusiveGroups: [["background", "wait"], ["resume", "fresh"]]
   },
   status: { booleanOptions: ["all", "json"], valueOptions: [] },
@@ -83,6 +116,17 @@ async function main(argv) {
   const parsed = parseArgs(argv, config);
   if (parsed.command === "setup") {
     await handleSetup(parsed);
+    return;
+  }
+  if (["plan", "review", "adversarial-review", "rescue"].includes(parsed.command)) {
+    const result = await runForegroundCommand(parsed, {
+      cwd: process.cwd(),
+      env: process.env
+    });
+    console.log(formatForegroundResult(result, { json: Boolean(parsed.options.json) }));
+    if (result.status === "failed" || result.status === "cancelled") {
+      process.exitCode = 1;
+    }
     return;
   }
   console.log(JSON.stringify({ command: parsed.command, options: parsed.options, positionals: parsed.positionals }));
