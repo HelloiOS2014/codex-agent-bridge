@@ -21,7 +21,13 @@ if (process.env.FAKE_CLAUDE_SLEEP_MS) {
   await new Promise((resolve) => setTimeout(resolve, Number(process.env.FAKE_CLAUDE_SLEEP_MS)));
 }
 
-const prompt = args[args.length - 1] ?? "";
+let stdin = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) {
+  stdin += chunk;
+}
+
+const prompt = stdin.length > 0 ? stdin : args[args.length - 1] ?? "";
 const payload = {
   type: "result",
   session_id: "fake-claude-session",

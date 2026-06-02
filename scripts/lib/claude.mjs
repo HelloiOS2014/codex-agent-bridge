@@ -55,7 +55,16 @@ function readPrompt(options = {}) {
   return options.prompt ?? "";
 }
 
+function resolvePromptMode(options = {}) {
+  const promptMode = options.promptMode ?? "stdin";
+  if (promptMode !== "stdin") {
+    throw new Error(`Unsupported Claude prompt mode: ${promptMode}`);
+  }
+  return promptMode;
+}
+
 export function buildClaudeArgs(options = {}) {
+  resolvePromptMode(options);
   const extraArgs = normalizeStringArray(options.extraArgs, "extraArgs");
   assertNoDangerousArgs(extraArgs);
   assertNoToolControlArgs(extraArgs);
@@ -77,10 +86,6 @@ export function buildClaudeArgs(options = {}) {
     args.push("--effort", options.effort);
   }
   args.push(...extraArgs);
-
-  if (options.promptMode !== "stdin") {
-    args.push(readPrompt(options));
-  }
 
   assertNoDangerousArgs(args);
   return args;
@@ -155,12 +160,13 @@ function parseClaudeJson(stdout) {
 
 export async function runClaudePrint(options = {}) {
   const claudeBin = resolveClaudeBin(options);
+  const promptMode = resolvePromptMode(options);
   const prompt = readPrompt(options);
   const args = buildClaudeArgs(options);
   const result = await runCommand(claudeBin, args, {
     cwd: options.cwd,
     env: options.env,
-    stdin: options.promptMode === "stdin" ? prompt : undefined,
+    stdin: promptMode === "stdin" ? prompt : undefined,
     timeoutMs: options.timeoutMs
   });
   const parsed = parseClaudeJson(result.stdout);

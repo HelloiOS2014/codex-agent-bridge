@@ -87,7 +87,21 @@ test("buildClaudeArgs rejects unknown profiles and dangerous extra args", () => 
   );
 });
 
-test("runClaudePrint parses json result from prompt argument", async () => {
+test("buildClaudeArgs rejects dangerous equals-form extra args", () => {
+  for (const dangerousArg of [
+    "--dangerously-skip-permissions=true",
+    "--allow-dangerously-skip-permissions=1",
+    "--dangerously-bypass-approvals-and-sandbox=yes",
+    "--permission-mode=bypassPermissions"
+  ]) {
+    assert.throws(
+      () => buildClaudeArgs({ prompt: "hello", extraArgs: [dangerousArg] }),
+      /Dangerous Claude (flag|permission mode)/
+    );
+  }
+});
+
+test("runClaudePrint sends prompt over stdin by default", async () => {
   const result = await runClaudePrint({
     claudeBin: fixtureClaudePath,
     cwd: process.cwd(),
@@ -100,6 +114,38 @@ test("runClaudePrint parses json result from prompt argument", async () => {
   assert.equal(result.sessionId, "fake-claude-session");
   assert.match(result.output, /Fake Claude response: hello/);
   assert.equal(result.error, null);
+});
+
+test("runClaudePrint does not pass option-like prompt text in argv", async () => {
+  const claudeBin = writeFixture("claude-capture-argv.mjs", `#!/usr/bin/env node
+let stdin = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) stdin += chunk;
+console.log(JSON.stringify({
+  type: "result",
+  session_id: "argv-capture-session",
+  result: JSON.stringify({
+    argv: process.argv.slice(2),
+    stdin
+  })
+}));
+`);
+  const prompt = "--mcp-config=/tmp/evil.json --allowedTools=Write";
+
+  const result = await runClaudePrint({
+    claudeBin,
+    cwd: process.cwd(),
+    prompt,
+    toolProfile: "none"
+  });
+
+  assert.equal(result.status, 0);
+  assert.equal(result.sessionId, "argv-capture-session");
+  const payload = JSON.parse(result.output);
+  assert.equal(payload.stdin, prompt);
+  assert.ok(!payload.argv.includes(prompt));
+  assert.ok(!payload.argv.some((arg) => arg.startsWith("--mcp-config=")));
+  assert.ok(!payload.argv.some((arg) => arg.startsWith("--allowedTools=")));
 });
 
 test("runClaudePrint can pass prompt over stdin and forwards cwd and env", async () => {
