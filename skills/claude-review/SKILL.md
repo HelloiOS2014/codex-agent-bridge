@@ -33,12 +33,6 @@ Use this skill to delegate read-only review to Claude Code through the Claude Co
 Before the first delegated review in a workspace, run:
 
 ```bash
-node scripts/claude-companion.mjs setup --json
-```
-
-If invoking from outside the plugin root, use:
-
-```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
@@ -49,47 +43,41 @@ If setup is not ready, report the setup blocker and do not delegate the review.
 Machine-readable working tree review:
 
 ```bash
-node scripts/claude-companion.mjs review --json --scope working-tree
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --json --scope working-tree
 ```
 
 Branch review against a base ref:
 
 ```bash
-node scripts/claude-companion.mjs review --json --scope branch --base "$BASE_REF"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --json --scope branch --base "$BASE_REF"
 ```
 
 Adversarial review with a focus prompt:
 
 ```bash
-node scripts/claude-companion.mjs adversarial-review --json --scope auto --prompt "$FOCUS"
-```
-
-Use an absolute plugin-root path when the current working directory is the target project:
-
-```bash
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --json --scope working-tree
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review --json --scope auto --prompt "$FOCUS"
 ```
 
 For long-running review:
 
 ```bash
-node scripts/claude-companion.mjs review --background --json --scope branch --base "$BASE_REF"
-node scripts/claude-companion.mjs adversarial-review --background --json --scope auto --prompt "$FOCUS"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --background --json --scope branch --base "$BASE_REF"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review --background --json --scope auto --prompt "$FOCUS"
 ```
 
 Use `--wait` when the job should be tracked and Codex should wait for completion:
 
 ```bash
-node scripts/claude-companion.mjs review --wait --json --scope working-tree
-node scripts/claude-companion.mjs adversarial-review --wait --json --scope auto --prompt "$FOCUS"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --wait --json --scope working-tree
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review --wait --json --scope auto --prompt "$FOCUS"
 ```
 
 After a background job starts, report the job id and use:
 
 ```bash
-node scripts/claude-companion.mjs status "$JOB_ID" --json
-node scripts/claude-companion.mjs result "$JOB_ID" --json
-node scripts/claude-companion.mjs cancel "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
 Present findings first, preserve file paths and line numbers, and keep the result as review output. If the user wants fixes, ask for or wait for an explicit implementation instruction.

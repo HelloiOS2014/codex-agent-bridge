@@ -33,49 +33,43 @@ Use this skill to check setup and manage Claude Companion background or waited j
 Setup check:
 
 ```bash
-node scripts/claude-companion.mjs setup --json
-```
-
-Setup check from a target project with an absolute plugin-root path:
-
-```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
 Latest status:
 
 ```bash
-node scripts/claude-companion.mjs status --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status --json
 ```
 
 All recent jobs:
 
 ```bash
-node scripts/claude-companion.mjs status --all --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status --all --json
 ```
 
 Specific job status:
 
 ```bash
-node scripts/claude-companion.mjs status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
 ```
 
 Latest finished result:
 
 ```bash
-node scripts/claude-companion.mjs result --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result --json
 ```
 
 Specific job result:
 
 ```bash
-node scripts/claude-companion.mjs result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
 ```
 
 Cancel a running job:
 
 ```bash
-node scripts/claude-companion.mjs cancel "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
 ## Handling Output

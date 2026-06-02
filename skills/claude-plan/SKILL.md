@@ -33,12 +33,6 @@ Use this skill to delegate planning to Claude Code through the Claude Companion 
 Before the first delegation in a workspace, or when Claude setup may have changed, run:
 
 ```bash
-node scripts/claude-companion.mjs setup --json
-```
-
-If invoking from outside the plugin root, use the resolved plugin root path:
-
-```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
@@ -49,33 +43,27 @@ If setup is not ready, tell the user what is missing, such as installing Claude 
 Use `--json` when Codex should parse the result before presenting it:
 
 ```bash
-node scripts/claude-companion.mjs plan --json --prompt "$PROMPT"
-```
-
-Use an absolute plugin-root path when the current working directory is the target project:
-
-```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan --json --prompt "$PROMPT"
 ```
 
 For long-running planning:
 
 ```bash
-node scripts/claude-companion.mjs plan --background --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan --background --json --prompt "$PROMPT"
 ```
 
 Use `--wait` when the job should be tracked as a companion job but Codex should wait for completion:
 
 ```bash
-node scripts/claude-companion.mjs plan --wait --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan --wait --json --prompt "$PROMPT"
 ```
 
 After a background job starts, report the job id and use:
 
 ```bash
-node scripts/claude-companion.mjs status "$JOB_ID" --json
-node scripts/claude-companion.mjs result "$JOB_ID" --json
-node scripts/claude-companion.mjs cancel "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
 Return the companion output to the user. Preserve architecture decisions, assumptions, risks, sequencing, and verification guidance; do not turn the plan into edits unless the user explicitly asks Codex to implement it.

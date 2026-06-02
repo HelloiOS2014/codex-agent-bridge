@@ -30,7 +30,8 @@ test("manifest exposes the skills directory and all expected skills exist", () =
     const body = read(file);
     assert.match(body, /^---\nname: claude-/);
     assert.match(body, /description:/);
-    assert.match(body, /node scripts\/claude-companion\.mjs/);
+    assert.match(body, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs"/);
+    assert.doesNotMatch(body, /node scripts\/claude-companion\.mjs/);
     assert.match(body, /--json/);
   }
 });
@@ -84,10 +85,10 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /--wait --json/);
 
   const review = read("skills/claude-review/SKILL.md");
-  assert.match(review, /review --json --scope working-tree/);
-  assert.match(review, /adversarial-review --json --scope auto --prompt "\$FOCUS"/);
+  assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);
+  assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" adversarial-review --json --scope auto --prompt "\$FOCUS"/);
 
   const rescue = read("skills/claude-rescue/SKILL.md");
-  assert.match(rescue, /rescue --json --prompt "\$PROMPT"/);
-  assert.match(rescue, /rescue --write --json --prompt "\$PROMPT"/);
+  assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --json --prompt "\$PROMPT"/);
+  assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --write --json --prompt "\$PROMPT"/);
 });

@@ -34,12 +34,6 @@ Use this skill to delegate investigation or implementation rescue work to Claude
 Before the first delegated rescue in a workspace, run:
 
 ```bash
-node scripts/claude-companion.mjs setup --json
-```
-
-If invoking from outside the plugin root, use:
-
-```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
@@ -50,53 +44,47 @@ If setup is not ready, report the setup blocker and do not delegate rescue work.
 Read-only investigation with machine-readable output:
 
 ```bash
-node scripts/claude-companion.mjs rescue --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --json --prompt "$PROMPT"
 ```
 
 Write-enabled rescue, only after explicit user request:
 
 ```bash
-node scripts/claude-companion.mjs rescue --write --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write --json --prompt "$PROMPT"
 ```
 
 Resume the latest safe companion rescue job for this workspace:
 
 ```bash
-node scripts/claude-companion.mjs rescue --resume --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --resume --json
 ```
 
 Force a fresh rescue session:
 
 ```bash
-node scripts/claude-companion.mjs rescue --fresh --json --prompt "$PROMPT"
-```
-
-Use an absolute plugin-root path when the current working directory is the target project:
-
-```bash
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --fresh --json --prompt "$PROMPT"
 ```
 
 For long-running rescue:
 
 ```bash
-node scripts/claude-companion.mjs rescue --background --json --prompt "$PROMPT"
-node scripts/claude-companion.mjs rescue --background --write --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --background --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --background --write --json --prompt "$PROMPT"
 ```
 
 Use `--wait` when the job should be tracked and Codex should wait for completion:
 
 ```bash
-node scripts/claude-companion.mjs rescue --wait --json --prompt "$PROMPT"
-node scripts/claude-companion.mjs rescue --wait --write --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --wait --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --wait --write --json --prompt "$PROMPT"
 ```
 
 After a background job starts, report the job id and use:
 
 ```bash
-node scripts/claude-companion.mjs status "$JOB_ID" --json
-node scripts/claude-companion.mjs result "$JOB_ID" --json
-node scripts/claude-companion.mjs cancel "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
 For write-enabled results, report changed files, verification, residual risk, and any follow-up Codex must still perform. Do not stage, commit, or revert files unless the user explicitly asks.
