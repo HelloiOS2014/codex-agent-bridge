@@ -128,3 +128,71 @@ test("collectReviewContext extracts committed, staged, unstaged, and untracked f
     ["baseline:committed.txt", "staged:staged.txt", "unstaged:README.md", "untracked:untracked.txt"]
   );
 });
+
+test("collectReviewContext includes untracked text file content in full diff", async () => {
+  const cwd = await makeTempGitRepo();
+  fs.writeFileSync(path.join(cwd, "untracked.txt"), "line one\nline two\n", "utf8");
+
+  const context = await collectReviewContext(cwd, {});
+
+  assert.match(context.fullDiff, /## Untracked Files/);
+  assert.match(context.fullDiff, /### untracked\.txt/);
+  assert.match(context.fullDiff, /line one\nline two/);
+  assert.match(context.content, /line one\nline two/);
+  assert.deepEqual(context.metadata.untrackedFiles.included, [
+    {
+      path: "untracked.txt",
+      bytes: 18,
+      truncated: false,
+      omittedBytes: 0
+    }
+  ]);
+});
+
+test("collectReviewContext notes binary untracked files and truncates oversized text", async () => {
+  const cwd = await makeTempGitRepo();
+  fs.writeFileSync(path.join(cwd, "binary.bin"), Buffer.from([0x00, 0x01, 0x02, 0x03]));
+  fs.writeFileSync(path.join(cwd, "large.txt"), "abcdefghijklmnop\n", "utf8");
+
+  const context = await collectReviewContext(cwd, {
+    maxUntrackedFileBytes: 8,
+    maxDiffBytes: 1024
+  });
+
+  assert.match(context.fullDiff, /### binary\.bin/);
+  assert.match(context.fullDiff, /skipped: likely binary/i);
+  assert.match(context.fullDiff, /### large\.txt/);
+  assert.match(context.fullDiff, /abcdefgh/);
+  assert.doesNotMatch(context.fullDiff, /ijklmnop/);
+  assert.match(context.fullDiff, /truncated at 8 bytes; omitted 9 bytes/i);
+  assert.deepEqual(context.metadata.untrackedFiles.skipped, [
+    {
+      path: "binary.bin",
+      reason: "likely-binary",
+      bytes: 4
+    }
+  ]);
+  assert.deepEqual(context.metadata.untrackedFiles.included, [
+    {
+      path: "large.txt",
+      bytes: 17,
+      truncated: true,
+      omittedBytes: 9
+    }
+  ]);
+});
+
+test("collectReviewContext applies full diff cap to untracked file context", async () => {
+  const cwd = await makeTempGitRepo();
+  fs.writeFileSync(path.join(cwd, "large-untracked.txt"), `${"x".repeat(600)}\n`, "utf8");
+
+  const context = await collectReviewContext(cwd, {
+    maxUntrackedFileBytes: 600,
+    maxDiffBytes: 120
+  });
+
+  assert.equal(context.diffTruncated, true);
+  assert.ok(Buffer.byteLength(context.fullDiff, "utf8") <= 120);
+  assert.ok(context.metadata.omittedDiffBytes > 0);
+  assert.match(context.content, /diff truncated at 120 bytes/i);
+});

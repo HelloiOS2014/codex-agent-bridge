@@ -1,7 +1,10 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { runCommand } from "./process.mjs";
 
 export const DEFAULT_MAX_DIFF_BYTES = 256 * 1024;
+export const DEFAULT_MAX_UNTRACKED_FILE_BYTES = 32 * 1024;
+const BINARY_SAMPLE_BYTES = 8192;
 
 function cleanLines(value) {
   return value.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -9,6 +12,10 @@ function cleanLines(value) {
 
 function unique(values) {
   return [...new Set(values)];
+}
+
+function byteLimit(value, fallback) {
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 }
 
 async function git(cwd, args) {
@@ -180,7 +187,7 @@ function formatFullDiff(parts) {
 }
 
 function truncateByBytes(value, maxBytes) {
-  const limit = Number.isFinite(maxBytes) && maxBytes >= 0 ? Math.floor(maxBytes) : DEFAULT_MAX_DIFF_BYTES;
+  const limit = byteLimit(maxBytes, DEFAULT_MAX_DIFF_BYTES);
   const buffer = Buffer.from(value, "utf8");
   const originalBytes = buffer.byteLength;
   if (originalBytes <= limit) {
@@ -202,6 +209,167 @@ function truncateByBytes(value, maxBytes) {
     originalBytes,
     omittedBytes: originalBytes - Buffer.byteLength(truncated, "utf8")
   };
+}
+
+function emptyUntrackedFileMetadata(maxFileBytes) {
+  return {
+    maxFileBytes,
+    included: [],
+    skipped: []
+  };
+}
+
+function isPathInside(parentPath, childPath) {
+  const relative = path.relative(parentPath, childPath);
+  return relative === "" || (relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function resolveRepoFilePath(repoRoot, relativePath) {
+  if (path.isAbsolute(relativePath)) {
+    return null;
+  }
+
+  const absolutePath = path.resolve(repoRoot, relativePath);
+  return isPathInside(repoRoot, absolutePath) ? absolutePath : null;
+}
+
+async function readFilePrefix(filePath, maxBytes) {
+  const handle = await fs.open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+function isLikelyBinary(buffer) {
+  if (buffer.includes(0)) {
+    return true;
+  }
+
+  let suspiciousBytes = 0;
+  for (const byte of buffer) {
+    const isAllowedControl = byte === 0x09 || byte === 0x0a || byte === 0x0d;
+    if (byte < 0x20 && !isAllowedControl) {
+      suspiciousBytes += 1;
+    }
+  }
+
+  return buffer.length > 0 && suspiciousBytes / buffer.length > 0.3;
+}
+
+function skipReasonText(reason) {
+  switch (reason) {
+    case "directory":
+      return "directory";
+    case "likely-binary":
+      return "likely binary";
+    case "outside-repo":
+      return "outside repo";
+    case "symlink":
+      return "symlink";
+    case "not-regular-file":
+      return "not a regular file";
+    case "unreadable":
+      return "unreadable";
+    default:
+      return reason;
+  }
+}
+
+function skippedUntrackedEntry(filePath, reason, bytes = null) {
+  const byteText = typeof bytes === "number" ? `; ${bytes} bytes` : "";
+  return [`### ${filePath}`, `(skipped: ${skipReasonText(reason)}${byteText})`].join("\n");
+}
+
+function includedUntrackedEntry(filePath, content, maxFileBytes, truncated, omittedBytes) {
+  const lines = [`### ${filePath}`, content || "(empty)"];
+  if (truncated) {
+    lines.push(`(truncated at ${maxFileBytes} bytes; omitted ${omittedBytes} bytes)`);
+  }
+  return lines.join("\n");
+}
+
+async function getUntrackedFileContext(repoRoot, changedFileDetails, options = {}) {
+  const maxFileBytes = byteLimit(options.maxUntrackedFileBytes, DEFAULT_MAX_UNTRACKED_FILE_BYTES);
+  const metadata = emptyUntrackedFileMetadata(maxFileBytes);
+  const entries = [];
+  const untrackedPaths = unique(
+    changedFileDetails
+      .filter((file) => file.source === "untracked")
+      .map((file) => file.path)
+  ).sort();
+
+  for (const filePath of untrackedPaths) {
+    const absolutePath = resolveRepoFilePath(repoRoot, filePath);
+    if (!absolutePath) {
+      metadata.skipped.push({ path: filePath, reason: "outside-repo" });
+      entries.push(skippedUntrackedEntry(filePath, "outside-repo"));
+      continue;
+    }
+
+    let stats;
+    try {
+      stats = await fs.lstat(absolutePath);
+    } catch {
+      metadata.skipped.push({ path: filePath, reason: "unreadable" });
+      entries.push(skippedUntrackedEntry(filePath, "unreadable"));
+      continue;
+    }
+
+    if (stats.isDirectory()) {
+      metadata.skipped.push({ path: filePath, reason: "directory", bytes: stats.size });
+      entries.push(skippedUntrackedEntry(filePath, "directory", stats.size));
+      continue;
+    }
+
+    if (stats.isSymbolicLink()) {
+      metadata.skipped.push({ path: filePath, reason: "symlink", bytes: stats.size });
+      entries.push(skippedUntrackedEntry(filePath, "symlink", stats.size));
+      continue;
+    }
+
+    if (!stats.isFile()) {
+      metadata.skipped.push({ path: filePath, reason: "not-regular-file", bytes: stats.size });
+      entries.push(skippedUntrackedEntry(filePath, "not-regular-file", stats.size));
+      continue;
+    }
+
+    const sampleBytes = Math.min(stats.size, Math.max(maxFileBytes, BINARY_SAMPLE_BYTES));
+    const sample = sampleBytes > 0 ? await readFilePrefix(absolutePath, sampleBytes) : Buffer.alloc(0);
+    if (isLikelyBinary(sample)) {
+      metadata.skipped.push({ path: filePath, reason: "likely-binary", bytes: stats.size });
+      entries.push(skippedUntrackedEntry(filePath, "likely-binary", stats.size));
+      continue;
+    }
+
+    const contentBytes = Math.min(sample.length, maxFileBytes);
+    const contentBuffer = sample.subarray(0, contentBytes);
+    const truncatedContent = truncateByBytes(contentBuffer.toString("utf8"), maxFileBytes);
+    const includedBytes = Buffer.byteLength(truncatedContent.value, "utf8");
+    const omittedBytes = Math.max(0, stats.size - includedBytes);
+    const truncated = omittedBytes > 0;
+
+    metadata.included.push({
+      path: filePath,
+      bytes: stats.size,
+      truncated,
+      omittedBytes
+    });
+    entries.push(includedUntrackedEntry(filePath, truncatedContent.value, maxFileBytes, truncated, omittedBytes));
+  }
+
+  const part = entries.length > 0
+    ? {
+        title: "Untracked Files",
+        summary: `${metadata.included.length + metadata.skipped.length} untracked file(s): ${metadata.included.length} included, ${metadata.skipped.length} skipped; per-file cap ${maxFileBytes} bytes`,
+        diff: entries.join("\n\n")
+      }
+    : null;
+
+  return { part, metadata };
 }
 
 function formatContent(context) {
@@ -247,6 +415,8 @@ function formatContent(context) {
 export async function collectReviewContext(cwd, options = {}) {
   const absoluteCwd = path.resolve(cwd);
   const repoRoot = await getRepoRoot(absoluteCwd);
+  const maxDiffBytes = options.maxDiffBytes ?? options.maxDiffChars ?? DEFAULT_MAX_DIFF_BYTES;
+  const maxUntrackedFileBytes = byteLimit(options.maxUntrackedFileBytes, DEFAULT_MAX_UNTRACKED_FILE_BYTES);
 
   if (!repoRoot) {
     const context = {
@@ -263,9 +433,10 @@ export async function collectReviewContext(cwd, options = {}) {
       diffTruncated: false,
       truncated: false,
       metadata: {
-        maxDiffBytes: options.maxDiffBytes ?? DEFAULT_MAX_DIFF_BYTES,
+        maxDiffBytes,
         originalDiffBytes: 0,
-        omittedDiffBytes: 0
+        omittedDiffBytes: 0,
+        untrackedFiles: emptyUntrackedFileMetadata(maxUntrackedFileBytes)
       }
     };
     return { ...context, content: formatContent(context) };
@@ -277,8 +448,13 @@ export async function collectReviewContext(cwd, options = {}) {
   const changedFileDetails = await getChangedFileDetails(repoRoot, baseline);
   const changedFiles = unique(changedFileDetails.map((file) => file.path)).sort();
   const diffParts = await getDiffParts(repoRoot, baseline);
+  const untrackedContext = await getUntrackedFileContext(repoRoot, changedFileDetails, {
+    maxUntrackedFileBytes
+  });
+  if (untrackedContext.part) {
+    diffParts.push(untrackedContext.part);
+  }
   const fullDiffRaw = formatFullDiff(diffParts);
-  const maxDiffBytes = options.maxDiffBytes ?? options.maxDiffChars ?? DEFAULT_MAX_DIFF_BYTES;
   const truncatedDiff = truncateByBytes(fullDiffRaw, maxDiffBytes);
 
   const context = {
@@ -297,7 +473,8 @@ export async function collectReviewContext(cwd, options = {}) {
     metadata: {
       maxDiffBytes,
       originalDiffBytes: truncatedDiff.originalBytes,
-      omittedDiffBytes: truncatedDiff.omittedBytes
+      omittedDiffBytes: truncatedDiff.omittedBytes,
+      untrackedFiles: untrackedContext.metadata
     }
   };
 
