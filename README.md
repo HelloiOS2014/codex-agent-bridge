@@ -16,7 +16,7 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id> [--cwd <
 ```
 
 `CLAUDE_PLUGIN_ROOT` must point at this plugin's installed root, so commands do not depend on Codex's current workspace directory.
-For background jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`.
+For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`.
 
 `plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
 

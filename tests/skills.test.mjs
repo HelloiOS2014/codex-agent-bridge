@@ -48,7 +48,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" status/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" result/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel <job-id>/);
-  assert.match(readme, /same `--cwd` to `status`, `result`, and `cancel`/);
+  assert.match(readme, /background or waited jobs started with `--cwd <workspace>`/);
 
   for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
     assert.match(readme, new RegExp(`\\b${skill}\\b`));
@@ -110,6 +110,7 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /status "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
   assert.match(combined, /result "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
   assert.match(combined, /cancel "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
+  assert.match(combined, /background or waited job was started with `--cwd "\$WORKSPACE"`/);
   assert.match(combined, /--background --json/);
   assert.match(combined, /--wait --json/);
 

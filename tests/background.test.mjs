@@ -125,6 +125,36 @@ test("--wait runs through the job path, returns the final result, and records la
   assert.match(latest.stdout, /waited rescue/);
 });
 
+test("--wait --cwd jobs can be managed with status result and cancel --cwd", async () => {
+  const stateDir = makeTempDir("background-wait-cwd-state-");
+  const workspaceRoot = makeTempDir("background-wait-cwd-workspace-");
+  const waited = await runCli(["plan", "--wait", "--json", "--cwd", workspaceRoot, "wait", "cwd"], {
+    stateDir
+  });
+
+  assert.equal(waited.status, 0);
+  assert.equal(waited.stderr, "");
+  const waitedResult = JSON.parse(waited.stdout);
+  assert.equal(waitedResult.status, "completed");
+  assert.match(waitedResult.rendered, /wait cwd/);
+
+  const status = await runCli(["status", "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(status.status, 0);
+  const snapshot = JSON.parse(status.stdout);
+  assert.equal(snapshot.latestFinished.status, "completed");
+  assert.equal(snapshot.latestFinished.cwd, workspaceRoot);
+
+  const result = await runCli(["result", snapshot.latestFinished.id, "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).status, "completed");
+
+  const cancel = await runCli(["cancel", snapshot.latestFinished.id, "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(cancel.status, 0);
+  const payload = JSON.parse(cancel.stdout);
+  assert.equal(payload.status, "unchanged");
+  assert.equal(payload.job.status, "completed");
+});
+
 test("result defaults to latest finished job and explicit ids read older finished jobs", async () => {
   const stateDir = makeTempDir("background-latest-state-");
   const firstLaunch = await runCli(["plan", "--background", "first", "plan"], { stateDir });
