@@ -1,0 +1,38 @@
+{
+  "name": "claude-companion",
+  "version": "0.1.0",
+  "description": "Use Claude Code from Codex for planning, review, and delegated rescue work.",
+  "author": {
+    "name": "JOYY"
+  },
+  "homepage": "https://github.com/",
+  "repository": "https://github.com/",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "planning",
+    "review",
+    "delegation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Claude Companion",
+    "shortDescription": "Delegate planning, review, and rescue work from Codex to Claude Code",
+    "longDescription": "Claude Companion lets Codex invoke local Claude Code for architecture planning, code review, adversarial review, and explicitly write-enabled delegated tasks while keeping plan and review commands read-only.",
+    "developerName": "JOYY",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Ask Claude to plan this architecture",
+      "Ask Claude to review my current changes",
+      "Ask Claude to fix this issue"
+    ],
+    "brandColor": "#5B4DFF",
+    "screenshots": []
+  }
+}

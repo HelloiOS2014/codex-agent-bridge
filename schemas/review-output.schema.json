@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["status", "kind", "summary", "rawOutput", "rendered"],
+  "properties": {
+    "status": { "type": "string" },
+    "kind": { "type": "string" },
+    "summary": { "type": "string" },
+    "rawOutput": { "type": "string" },
+    "rendered": { "type": "string" },
+    "reasoningSummary": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "touchedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "metadata": { "type": "object" }
+  }
+}

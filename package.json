@@ -1,0 +1,15 @@
+{
+  "name": "claude-companion-codex-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Use Claude Code from Codex for planning, review, and delegated rescue work.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check:manifest": "node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('.codex-plugin/plugin.json','utf8')); if(!p.name||!p.version||!p.skills||!p.interface) process.exit(1);\""
+  }
+}
