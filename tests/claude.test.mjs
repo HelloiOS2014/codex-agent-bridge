@@ -101,6 +101,66 @@ test("buildClaudeArgs rejects dangerous equals-form extra args", () => {
   }
 });
 
+test("buildClaudeArgs allows only safe extra args", () => {
+  assert.deepEqual(
+    buildClaudeArgs({
+      prompt: "hello",
+      extraArgs: ["--max-turns", "3", "--verbose"]
+    }).slice(-3),
+    ["--max-turns", "3", "--verbose"]
+  );
+  assert.deepEqual(
+    buildClaudeArgs({
+      prompt: "hello",
+      extraArgs: ["--max-turns=2"]
+    }).slice(-2),
+    ["--max-turns", "2"]
+  );
+});
+
+test("buildClaudeArgs rejects unsafe extra args in split and equals forms", () => {
+  const unsafeCases = [
+    ["--dangerously-load-development-channels"],
+    ["--plugin-url", "https://example.invalid/plugin"],
+    ["--plugin-url=https://example.invalid/plugin"],
+    ["--add-dir", "/tmp/other"],
+    ["--add-dir=/tmp/other"],
+    ["--exec", "rm -rf nope"],
+    ["--exec=rm -rf nope"],
+    ["--settings", "/tmp/settings.json"],
+    ["--settings=/tmp/settings.json"],
+    ["--mcp-config", "/tmp/mcp.json"],
+    ["--mcp-config=/tmp/mcp.json"],
+    ["--tools", "Write"],
+    ["--tools=Write"],
+    ["--allowedTools", "Write"],
+    ["--allowedTools=Write"],
+    ["--disallowedTools", "Read"],
+    ["--disallowedTools=Read"],
+    ["--permission-mode", "acceptEdits"]
+  ];
+
+  for (const extraArgs of unsafeCases) {
+    assert.throws(
+      () => buildClaudeArgs({ prompt: "hello", extraArgs }),
+      /Dangerous Claude flag|Claude tool flags|Unsupported Claude extra arg/
+    );
+  }
+
+  for (const invalidExtraArgs of [
+    ["--max-turns", "0"],
+    ["--max-turns=0"],
+    ["--max-turns", "abc"],
+    ["--verbose=true"],
+    ["positional"]
+  ]) {
+    assert.throws(
+      () => buildClaudeArgs({ prompt: "hello", extraArgs: invalidExtraArgs }),
+      /positive integer|does not accept a value|Unsupported Claude extra arg/
+    );
+  }
+});
+
 test("runClaudePrint sends prompt over stdin by default", async () => {
   const result = await runClaudePrint({
     claudeBin: fixtureClaudePath,

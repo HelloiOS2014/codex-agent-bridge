@@ -16,6 +16,14 @@ const TOOL_CONTROL_FLAGS = new Set([
   "--mcp-config"
 ]);
 
+const SAFE_EXTRA_BOOLEAN_FLAGS = new Set([
+  "--verbose"
+]);
+
+const SAFE_EXTRA_VALUE_FLAGS = new Set([
+  "--max-turns"
+]);
+
 export function resolveClaudeBin(options = {}) {
   return options.claudeBin || process.env.CLAUDE_COMPANION_CLAUDE_BIN || "claude";
 }
@@ -46,6 +54,55 @@ function assertNoToolControlArgs(argv) {
   }
 }
 
+function flagName(arg) {
+  const equalsIndex = arg.indexOf("=");
+  return equalsIndex === -1 ? arg : arg.slice(0, equalsIndex);
+}
+
+function validateMaxTurns(value) {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new Error(`Claude --max-turns must be a positive integer: ${value}`);
+  }
+}
+
+function normalizeSafeExtraArgs(argv) {
+  const args = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const flag = flagName(arg);
+
+    if (!arg.startsWith("--")) {
+      throw new Error(`Unsupported Claude extra arg: ${arg}`);
+    }
+
+    if (SAFE_EXTRA_BOOLEAN_FLAGS.has(flag)) {
+      if (arg.includes("=")) {
+        throw new Error(`Claude extra arg does not accept a value: ${flag}`);
+      }
+      args.push(flag);
+      continue;
+    }
+
+    if (SAFE_EXTRA_VALUE_FLAGS.has(flag)) {
+      const value = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : argv[index + 1];
+      if (!value || (!arg.includes("=") && value.startsWith("--"))) {
+        throw new Error(`Missing value for Claude extra arg: ${flag}`);
+      }
+      if (flag === "--max-turns") {
+        validateMaxTurns(value);
+      }
+      args.push(flag, value);
+      if (!arg.includes("=")) {
+        index += 1;
+      }
+      continue;
+    }
+
+    throw new Error(`Unsupported Claude extra arg: ${flag}`);
+  }
+  return args;
+}
+
 function readPrompt(options = {}) {
   if (options.promptFile) {
     const cwd = options.cwd ?? process.cwd();
@@ -65,9 +122,10 @@ function resolvePromptMode(options = {}) {
 
 export function buildClaudeArgs(options = {}) {
   resolvePromptMode(options);
-  const extraArgs = normalizeStringArray(options.extraArgs, "extraArgs");
-  assertNoDangerousArgs(extraArgs);
-  assertNoToolControlArgs(extraArgs);
+  const requestedExtraArgs = normalizeStringArray(options.extraArgs, "extraArgs");
+  assertNoDangerousArgs(requestedExtraArgs);
+  assertNoToolControlArgs(requestedExtraArgs);
+  const extraArgs = normalizeSafeExtraArgs(requestedExtraArgs);
 
   const args = [
     "-p",

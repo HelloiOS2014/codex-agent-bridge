@@ -7,6 +7,11 @@ const DANGEROUS_FLAGS = new Set([
   "--dangerously-bypass-approvals-and-sandbox"
 ]);
 
+const DANGEROUS_FLAG_PREFIXES = [
+  "--dangerously-",
+  "--allow-dangerously-"
+];
+
 const DANGEROUS_PERMISSION_MODES = new Set(["bypassPermissions"]);
 
 function flagName(arg) {
@@ -18,7 +23,7 @@ export function assertNoDangerousArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const flag = flagName(arg);
-    if (DANGEROUS_FLAGS.has(flag)) {
+    if (DANGEROUS_FLAGS.has(flag) || DANGEROUS_FLAG_PREFIXES.some((prefix) => flag.startsWith(prefix))) {
       throw new Error(`Dangerous Claude flag is not allowed: ${flag}`);
     }
     if (arg === "--permission-mode" && DANGEROUS_PERMISSION_MODES.has(argv[index + 1])) {

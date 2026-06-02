@@ -35,6 +35,14 @@ test("dangerous flags are rejected", () => {
     () => assertNoDangerousArgs(["--permission-mode=bypassPermissions"]),
     /Dangerous Claude permission mode/
   );
+  assert.throws(
+    () => assertNoDangerousArgs(["--dangerously-load-development-channels"]),
+    /Dangerous Claude flag/
+  );
+  assert.throws(
+    () => assertNoDangerousArgs(["--allow-dangerously-skip-permissions=true"]),
+    /Dangerous Claude flag/
+  );
 });
 
 test("parseArgs rejects plan background and wait together", () => {
