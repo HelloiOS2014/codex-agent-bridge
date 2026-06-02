@@ -39,7 +39,7 @@ export async function binaryAvailable(command, args = ["--version"], options = {
 }
 
 export function terminateProcessTree(pid, signal = "SIGTERM", options = {}) {
-  if (!Number.isInteger(pid) || pid <= 0) {
+  if (!Number.isInteger(pid) || pid <= 1) {
     return false;
   }
   try {

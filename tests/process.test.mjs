@@ -34,6 +34,17 @@ test("terminateProcessTree returns false for invalid pids", () => {
   assert.equal(terminateProcessTree(1.5), false);
 });
 
+test("terminateProcessTree rejects pid 1 before signaling", (t) => {
+  const calls = [];
+  t.mock.method(process, "kill", (pid, signal) => {
+    calls.push([pid, signal]);
+    return true;
+  });
+
+  assert.equal(terminateProcessTree(1), false);
+  assert.deepEqual(calls, []);
+});
+
 test("terminateProcessTree does not fallback to bare pid by default", (t) => {
   const calls = [];
   t.mock.method(process, "kill", (pid, signal) => {
