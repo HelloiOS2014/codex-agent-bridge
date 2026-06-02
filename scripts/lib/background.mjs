@@ -161,6 +161,8 @@ export function spawnBackgroundJob(job, options = {}) {
   });
   child.unref();
   const root = jobRoot(job);
+  appendJobLog(root, job.id, `spawned worker pid ${child.pid}`, env);
+
   let current = job;
   try {
     current = readJobFile(root, job.id, env);
@@ -171,10 +173,11 @@ export function spawnBackgroundJob(job, options = {}) {
     appendJobLog(root, current.id, `worker reached ${current.status} before parent recorded pid ${child.pid}`, env);
     return current;
   }
-  const running = startJobRecord(current, child.pid);
-  upsertJob(jobRoot(running), running, env);
-  appendJobLog(jobRoot(running), running.id, `spawned worker pid ${child.pid}`, env);
-  return running;
+
+  // The run-job worker is the only process allowed to persist the running
+  // transition. Returning a transient running view preserves launch feedback
+  // without creating a parent-after-worker overwrite window.
+  return startJobRecord(current, child.pid);
 }
 
 export function listJobs(workspaceRoot, env = process.env) {

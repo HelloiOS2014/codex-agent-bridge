@@ -340,6 +340,38 @@ test("spawnBackgroundJob does not overwrite terminal state from a fast worker", 
   assert.equal(readJobResultFile(workspaceRoot, job.id, env).summary, "fast worker completed");
 });
 
+test("spawnBackgroundJob leaves persistent running transition to run-job worker", () => {
+  const stateDir = makeTempDir("background-parent-running-state-");
+  const workspaceRoot = makeTempDir("background-parent-running-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const job = createJobRecord({
+    kind: "plan",
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: "plan",
+    args: ["parent", "spawn"],
+    env
+  });
+  persistManualJob(workspaceRoot, job, env);
+
+  const workerDir = makeTempDir("background-parent-running-bin-");
+  const workerPath = path.join(workerDir, "worker.mjs");
+  fs.writeFileSync(workerPath, "setTimeout(() => {}, 250);\n", "utf8");
+
+  const returned = spawnBackgroundJob(job, {
+    cliPath: workerPath,
+    env
+  });
+
+  assert.equal(returned.status, "running");
+  assert.ok(Number.isInteger(returned.pid));
+
+  const stored = readJobFile(workspaceRoot, job.id, env);
+  assert.equal(stored.status, "queued");
+  assert.equal(stored.pid, null);
+  assert.equal(stored.startedAt, null);
+});
+
 test("status supports explicit, all, and json modes", async () => {
   const stateDir = makeTempDir("background-status-state-");
   const launch = await runCli(["plan", "--background", "status", "plan"], { stateDir });
