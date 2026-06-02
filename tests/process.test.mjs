@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runCommand, binaryAvailable } from "../scripts/lib/process.mjs";
+import { runCommand, binaryAvailable, terminateProcessTree } from "../scripts/lib/process.mjs";
 
 test("runCommand captures stdout and exit status", async () => {
   const result = await runCommand(process.execPath, ["-e", "console.log('ok')"]);
@@ -26,4 +26,38 @@ test("binaryAvailable returns true for node", async () => {
   const result = await binaryAvailable(process.execPath, ["--version"]);
   assert.equal(result.available, true);
   assert.match(result.stdout, /^v/);
+});
+
+test("terminateProcessTree returns false for invalid pids", () => {
+  assert.equal(terminateProcessTree(0), false);
+  assert.equal(terminateProcessTree(-1), false);
+  assert.equal(terminateProcessTree(1.5), false);
+});
+
+test("terminateProcessTree does not fallback to bare pid by default", (t) => {
+  const calls = [];
+  t.mock.method(process, "kill", (pid, signal) => {
+    calls.push([pid, signal]);
+    if (pid < 0) {
+      throw new Error("missing process group");
+    }
+    return true;
+  });
+
+  assert.equal(terminateProcessTree(12345, "SIGTERM"), false);
+  assert.deepEqual(calls, [[-12345, "SIGTERM"]]);
+});
+
+test("terminateProcessTree allows explicit pid fallback", (t) => {
+  const calls = [];
+  t.mock.method(process, "kill", (pid, signal) => {
+    calls.push([pid, signal]);
+    if (pid < 0) {
+      throw new Error("missing process group");
+    }
+    return true;
+  });
+
+  assert.equal(terminateProcessTree(12345, "SIGTERM", { allowPidFallback: true }), true);
+  assert.deepEqual(calls, [[-12345, "SIGTERM"], [12345, "SIGTERM"]]);
 });
