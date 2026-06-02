@@ -4,10 +4,26 @@ import { parseArgs } from "./lib/args.mjs";
 
 const COMMAND_CONFIG = {
   setup: { booleanOptions: ["json"], valueOptions: [] },
-  plan: { booleanOptions: ["background", "wait"], valueOptions: ["model", "effort", "prompt-file"] },
-  review: { booleanOptions: ["background", "wait", "json"], valueOptions: ["base", "scope"] },
-  "adversarial-review": { booleanOptions: ["background", "wait"], valueOptions: ["base", "scope", "prompt-file"] },
-  rescue: { booleanOptions: ["background", "wait", "resume", "fresh", "write"], valueOptions: ["model", "effort", "prompt-file"] },
+  plan: {
+    booleanOptions: ["background", "wait"],
+    valueOptions: ["model", "effort", "prompt-file"],
+    exclusiveGroups: [["background", "wait"]]
+  },
+  review: {
+    booleanOptions: ["background", "wait", "json"],
+    valueOptions: ["base", "scope"],
+    exclusiveGroups: [["background", "wait"]]
+  },
+  "adversarial-review": {
+    booleanOptions: ["background", "wait"],
+    valueOptions: ["base", "scope", "prompt-file"],
+    exclusiveGroups: [["background", "wait"]]
+  },
+  rescue: {
+    booleanOptions: ["background", "wait", "resume", "fresh", "write"],
+    valueOptions: ["model", "effort", "prompt-file"],
+    exclusiveGroups: [["background", "wait"], ["resume", "fresh"]]
+  },
   status: { booleanOptions: ["all", "json"], valueOptions: [] },
   result: { booleanOptions: ["json"], valueOptions: [] },
   cancel: { booleanOptions: ["json"], valueOptions: [] },

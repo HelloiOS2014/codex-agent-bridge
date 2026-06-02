@@ -18,6 +18,12 @@ export function assertNoDangerousArgs(argv) {
     if (arg === "--permission-mode" && DANGEROUS_PERMISSION_MODES.has(argv[index + 1])) {
       throw new Error(`Dangerous Claude permission mode is not allowed: ${argv[index + 1]}`);
     }
+    if (arg.startsWith("--permission-mode=")) {
+      const permissionMode = arg.slice("--permission-mode=".length);
+      if (DANGEROUS_PERMISSION_MODES.has(permissionMode)) {
+        throw new Error(`Dangerous Claude permission mode is not allowed: ${permissionMode}`);
+      }
+    }
   }
 }
 
@@ -51,6 +57,13 @@ export function parseArgs(argv, config = {}) {
       continue;
     }
     throw new Error(`Unknown option: --${name}`);
+  }
+
+  for (const group of config.exclusiveGroups ?? []) {
+    const activeOptions = group.filter((name) => options[name] === true);
+    if (activeOptions.length > 1) {
+      throw new Error(`Options are mutually exclusive: ${activeOptions.map((name) => `--${name}`).join(", ")}`);
+    }
   }
 
   return { command: command ?? "help", options, positionals };
