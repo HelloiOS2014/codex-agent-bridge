@@ -67,4 +67,6 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
+If the job was started with `--cwd "$WORKSPACE"`, pass the same `--cwd "$WORKSPACE"` to `status`, `result`, and `cancel`.
+
 Return the companion output to the user. Preserve architecture decisions, assumptions, risks, sequencing, and verification guidance; do not turn the plan into edits unless the user explicitly asks Codex to implement it.

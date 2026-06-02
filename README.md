@@ -10,12 +10,13 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan this change"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --scope working-tree
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review "challenge this caching design"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write "fix the failing test"
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id>
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status [--cwd <workspace>]
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result [--cwd <workspace>]
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id> [--cwd <workspace>]
 ```
 
 `CLAUDE_PLUGIN_ROOT` must point at this plugin's installed root, so commands do not depend on Codex's current workspace directory.
+For background jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`.
 
 `plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
 

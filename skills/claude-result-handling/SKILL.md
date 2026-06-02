@@ -53,6 +53,7 @@ Specific job status:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --cwd "$WORKSPACE" --json
 ```
 
 Latest finished result:
@@ -65,13 +66,17 @@ Specific job result:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --cwd "$WORKSPACE" --json
 ```
 
 Cancel a running job:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --cwd "$WORKSPACE" --json
 ```
+
+Use the `--cwd "$WORKSPACE"` form when the original background or waited job was started with that workspace.
 
 ## Handling Output
 

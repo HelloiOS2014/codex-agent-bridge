@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib/args.mjs";
 import {
@@ -68,9 +69,9 @@ const COMMAND_CONFIG = {
     valueOptions: ["cwd", "prompt", "model", "effort", "prompt-file", "timeout", "timeout-ms"],
     exclusiveGroups: [["background", "wait"], ["resume", "fresh"]]
   },
-  status: { booleanOptions: ["all", "json"], valueOptions: [] },
-  result: { booleanOptions: ["json"], valueOptions: [] },
-  cancel: { booleanOptions: ["json"], valueOptions: [] },
+  status: { booleanOptions: ["all", "json"], valueOptions: ["cwd"] },
+  result: { booleanOptions: ["json"], valueOptions: ["cwd"] },
+  cancel: { booleanOptions: ["json"], valueOptions: ["cwd"] },
   "run-job": { booleanOptions: [], valueOptions: [] }
 };
 
@@ -82,9 +83,9 @@ function usage() {
     "  claude-companion review [--background|--wait] [--base <ref>] [--scope auto|working-tree|branch]",
     "  claude-companion adversarial-review [--background|--wait] [focus...]",
     "  claude-companion rescue [--background|--wait] [--resume|--fresh] [--write] [prompt...]",
-    "  claude-companion status [job-id] [--all] [--json]",
-    "  claude-companion result [job-id] [--json]",
-    "  claude-companion cancel [job-id] [--json]"
+    "  claude-companion status [job-id] [--cwd <workspace>] [--all] [--json]",
+    "  claude-companion result [job-id] [--cwd <workspace>] [--json]",
+    "  claude-companion cancel [job-id] [--cwd <workspace>] [--json]"
   ].join("\n");
 }
 
@@ -135,6 +136,10 @@ function assertAtMostOnePositional(parsed, label) {
     throw new Error(`${label} accepts at most one job id.`);
   }
   return parsed.positionals[0] ?? null;
+}
+
+function commandWorkspace(parsed) {
+  return parsed.options.cwd ? path.resolve(process.cwd(), parsed.options.cwd) : process.cwd();
 }
 
 function printRendered(value, options = {}) {
@@ -230,7 +235,7 @@ async function handleRunJob(parsed) {
 
 function handleStatus(parsed) {
   const jobId = assertAtMostOnePositional(parsed, "status");
-  const snapshot = statusSnapshot(process.cwd(), {
+  const snapshot = statusSnapshot(commandWorkspace(parsed), {
     jobId,
     all: Boolean(parsed.options.all),
     env: process.env
@@ -241,7 +246,7 @@ function handleStatus(parsed) {
 
 function handleResult(parsed) {
   const jobId = assertAtMostOnePositional(parsed, "result");
-  const { result } = readSelectedResult(process.cwd(), {
+  const { result } = readSelectedResult(commandWorkspace(parsed), {
     jobId,
     env: process.env
   });
@@ -254,7 +259,7 @@ function handleCancel(parsed) {
   if (!jobId) {
     throw new Error("cancel requires a job id.");
   }
-  const payload = cancelJob(process.cwd(), jobId, { env: process.env });
+  const payload = cancelJob(commandWorkspace(parsed), jobId, { env: process.env });
   if (parsed.options.json) {
     printRendered(payload, { json: true });
     return;

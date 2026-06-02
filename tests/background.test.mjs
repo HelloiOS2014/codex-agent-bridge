@@ -299,6 +299,50 @@ test("runStoredJob returns terminal jobs without re-executing them", async () =>
   assert.equal(executed, 0);
 });
 
+test("runStoredJob preserves terminal cancellation written while execution is in flight", async () => {
+  const stateDir = makeTempDir("background-cancel-race-state-");
+  const workspaceRoot = makeTempDir("background-cancel-race-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const job = createJobRecord({
+    kind: "plan",
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: "plan",
+    args: ["cancel", "race"],
+    env
+  });
+  persistManualJob(workspaceRoot, job, env);
+
+  const returned = await runStoredJob(job.id, {
+    workspaceRoot,
+    env,
+    execute: async (runningJob) => {
+      const cancelledResult = {
+        kind: "plan",
+        status: "cancelled",
+        summary: "cancelled while worker was running",
+        rendered: "cancelled while worker was running",
+        metadata: { jobId: runningJob.id }
+      };
+      const cancelled = completeJobRecord(runningJob, cancelledResult);
+      persistManualJob(workspaceRoot, cancelled, env);
+      writeJobResultFile(workspaceRoot, runningJob.id, cancelledResult, env);
+
+      return {
+        kind: "plan",
+        status: "completed",
+        summary: "worker completed after cancellation",
+        rendered: "worker completed after cancellation",
+        metadata: { jobId: runningJob.id }
+      };
+    }
+  });
+
+  assert.equal(returned.status, "cancelled");
+  assert.equal(readJobFile(workspaceRoot, job.id, env).status, "cancelled");
+  assert.equal(readJobResultFile(workspaceRoot, job.id, env).status, "cancelled");
+});
+
 test("spawnBackgroundJob does not overwrite terminal state from a fast worker", () => {
   const stateDir = makeTempDir("background-fast-worker-state-");
   const workspaceRoot = makeTempDir("background-fast-worker-workspace-");
@@ -372,6 +416,56 @@ test("spawnBackgroundJob leaves persistent running transition to run-job worker"
   assert.equal(stored.startedAt, null);
 });
 
+test("spawnBackgroundJob records failed state when worker cannot start", () => {
+  const stateDir = makeTempDir("background-spawn-fail-state-");
+  const workspaceRoot = makeTempDir("background-spawn-fail-workspace-");
+  const missingCwd = path.join(workspaceRoot, "missing");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const job = createJobRecord({
+    kind: "plan",
+    cwd: missingCwd,
+    workspaceRoot,
+    command: "plan",
+    args: ["spawn", "failure"],
+    env
+  });
+  persistManualJob(workspaceRoot, job, env);
+
+  const returned = spawnBackgroundJob(job, {
+    cliPath: path.join(repoRoot, "scripts", "claude-companion.mjs"),
+    env
+  });
+
+  assert.equal(returned.status, "failed");
+  assert.equal(readJobFile(workspaceRoot, job.id, env).status, "failed");
+  assert.match(readJobResultFile(workspaceRoot, job.id, env).error, /worker cwd does not exist/i);
+});
+
+test("status reconciles stale queued jobs as failed", async () => {
+  const stateDir = makeTempDir("background-stale-queued-state-");
+  const workspaceRoot = makeTempDir("background-stale-queued-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const job = {
+    ...createJobRecord({
+      kind: "plan",
+      cwd: workspaceRoot,
+      workspaceRoot,
+      command: "plan",
+      args: ["stale", "queued"],
+      env
+    }),
+    createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  };
+  persistManualJob(workspaceRoot, job, env);
+
+  const status = await runCli(["status", job.id, "--json"], { cwd: workspaceRoot, stateDir });
+
+  assert.equal(status.status, 0);
+  const snapshot = JSON.parse(status.stdout);
+  assert.equal(snapshot.job.status, "failed");
+  assert.match(snapshot.job.error, /active status queued/i);
+});
+
 test("status supports explicit, all, and json modes", async () => {
   const stateDir = makeTempDir("background-status-state-");
   const launch = await runCli(["plan", "--background", "status", "plan"], { stateDir });
@@ -388,6 +482,46 @@ test("status supports explicit, all, and json modes", async () => {
   assert.equal(all.status, 0);
   const snapshot = JSON.parse(all.stdout);
   assert.ok(extractJob(snapshot, jobId));
+});
+
+test("background jobs launched with --cwd can be managed with status result and cancel --cwd", async () => {
+  const stateDir = makeTempDir("background-cwd-state-");
+  const workspaceRoot = makeTempDir("background-cwd-workspace-");
+
+  const launch = await runCli(["plan", "--background", "--json", "--cwd", workspaceRoot, "cwd", "managed"], {
+    stateDir
+  });
+  assert.equal(launch.status, 0);
+  const jobId = JSON.parse(launch.stdout).job.id;
+
+  let completed = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const status = await runCli(["status", jobId, "--cwd", workspaceRoot, "--json"], { stateDir });
+    if (status.status === 0) {
+      const job = JSON.parse(status.stdout).job;
+      if (job?.status === "completed") {
+        completed = job;
+        break;
+      }
+    }
+    await sleep(100);
+  }
+  assert.ok(completed);
+
+  const result = await runCli(["result", jobId, "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).status, "completed");
+
+  const slowLaunch = await runCli(["rescue", "--background", "--json", "--cwd", workspaceRoot, "slow", "cwd"], {
+    stateDir,
+    env: { FAKE_CLAUDE_SLEEP_MS: "10000" }
+  });
+  assert.equal(slowLaunch.status, 0);
+  const slowJobId = JSON.parse(slowLaunch.stdout).job.id;
+
+  const cancel = await runCli(["cancel", slowJobId, "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(cancel.status, 0);
+  assert.equal(JSON.parse(cancel.stdout).job.status, "cancelled");
 });
 
 test("status result and cancel discover jobs present only in job files", async () => {
