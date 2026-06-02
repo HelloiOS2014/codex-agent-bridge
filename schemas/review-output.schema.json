@@ -3,8 +3,14 @@
   "type": "object",
   "required": ["status", "kind", "summary", "rawOutput", "rendered"],
   "properties": {
-    "status": { "type": "string" },
-    "kind": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled", "running", "queued"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["plan", "review", "adversarial-review", "rescue"]
+    },
     "summary": { "type": "string" },
     "rawOutput": { "type": "string" },
     "rendered": { "type": "string" },

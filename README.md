@@ -2,7 +2,7 @@
 
 Claude Companion lets Codex delegate planning, code review, adversarial review, and explicitly write-enabled rescue tasks to local Claude Code.
 
-Core commands are routed through:
+Planned command surface for later runtime tasks:
 
 ```bash
 node scripts/claude-companion.mjs setup
@@ -15,4 +15,4 @@ node scripts/claude-companion.mjs result
 node scripts/claude-companion.mjs cancel <job-id>
 ```
 
-`plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
+The CLI runtime is not implemented in this scaffold yet. When implemented, `plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
