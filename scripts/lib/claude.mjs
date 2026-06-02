@@ -5,8 +5,8 @@ import { binaryAvailable, runCommand } from "./process.mjs";
 
 const TOOL_PROFILES = {
   none: "",
-  read: "Read,Glob,Grep,Bash(git *)",
-  write: "Read,Glob,Grep,Bash(git *),Edit,MultiEdit,Write"
+  read: "Read,Glob,Grep",
+  write: "Read,Glob,Grep,Edit,MultiEdit,Write"
 };
 
 const TOOL_CONTROL_FLAGS = new Set([

@@ -59,12 +59,12 @@ test("getClaudeStatus reads version and auth from available Claude", async () =>
 
 test("buildToolArgs maps safe profiles without bypass permissions", () => {
   assert.deepEqual(buildToolArgs("none"), ["--tools", ""]);
-  assert.deepEqual(buildToolArgs("read"), ["--tools", "Read,Glob,Grep,Bash(git *)"]);
-  assert.deepEqual(buildToolArgs("write"), ["--tools", "Read,Glob,Grep,Bash(git *),Edit,MultiEdit,Write"]);
+  assert.deepEqual(buildToolArgs("read"), ["--tools", "Read,Glob,Grep"]);
+  assert.deepEqual(buildToolArgs("write"), ["--tools", "Read,Glob,Grep,Edit,MultiEdit,Write"]);
 
   for (const profile of ["none", "read"]) {
     assert.doesNotMatch(buildClaudeArgs({ prompt: "inspect", toolProfile: profile }).join(" "), /bypass|dangerously/i);
-    assert.doesNotMatch(buildClaudeArgs({ prompt: "inspect", toolProfile: profile }).join(" "), /Edit|MultiEdit|Write/);
+    assert.doesNotMatch(buildClaudeArgs({ prompt: "inspect", toolProfile: profile }).join(" "), /Bash|Edit|MultiEdit|Write/);
   }
 });
 

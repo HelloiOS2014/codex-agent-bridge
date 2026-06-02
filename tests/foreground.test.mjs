@@ -46,8 +46,8 @@ test("plan prompt asks for a full read-only plan and uses read profile", async (
   assert.match(result.rendered, /Do not edit files/i);
   assert.match(result.rendered, /design this/);
   assert.match(result.rendered, /"--permission-mode","plan"/);
-  assert.match(result.rendered, /"--tools","Read,Glob,Grep,Bash\(git \*\)"/);
-  assert.doesNotMatch(result.rendered, /Edit,MultiEdit,Write/);
+  assert.match(result.rendered, /"--tools","Read,Glob,Grep"/);
+  assert.doesNotMatch(result.rendered, /Bash|Edit,MultiEdit,Write/);
 });
 
 test("review prompt includes git context and uses no Claude tools", async () => {
@@ -118,13 +118,13 @@ test("rescue defaults to dry-run read profile and --write enables write profile"
   assert.equal(dryRun.status, "completed");
   assert.match(dryRun.rendered, /Mode: read-only \/ dry-run/);
   assert.match(dryRun.rendered, /read-only diagnosis/i);
-  assert.match(dryRun.rendered, /"--tools","Read,Glob,Grep,Bash\(git \*\)"/);
-  assert.doesNotMatch(dryRun.rendered, /Edit,MultiEdit,Write/);
+  assert.match(dryRun.rendered, /"--tools","Read,Glob,Grep"/);
+  assert.doesNotMatch(dryRun.rendered, /Bash|Edit,MultiEdit,Write/);
 
   assert.equal(write.status, "completed");
   assert.match(write.rendered, /Mode: write-enabled/);
   assert.match(write.rendered, /explicitly write-enabled rescue mode/i);
-  assert.match(write.rendered, /"--tools","Read,Glob,Grep,Bash\(git \*\),Edit,MultiEdit,Write"/);
+  assert.match(write.rendered, /"--tools","Read,Glob,Grep,Edit,MultiEdit,Write"/);
 });
 
 test("foreground command returns normalized JSON result for json mode", async () => {
@@ -157,6 +157,39 @@ test("invalid review baseline is rejected clearly", async () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Invalid git baseline ref "bad-ref"/);
+});
+
+test("CLI emits JSON error payload for invalid json requests", async () => {
+  const timeout = await runCli(["plan", "--json", "--timeout-ms", "0", "check"]);
+
+  assert.equal(timeout.status, 1);
+  assert.equal(timeout.stderr, "");
+  const timeoutPayload = JSON.parse(timeout.stdout);
+  assert.equal(timeoutPayload.kind, "plan");
+  assert.equal(timeoutPayload.status, "failed");
+  assert.match(timeoutPayload.error, /Timeout must be a positive integer/);
+
+  const deferred = await runCli(["rescue", "--json", "--background", "later"]);
+
+  assert.equal(deferred.status, 1);
+  assert.equal(deferred.stderr, "");
+  const deferredPayload = JSON.parse(deferred.stdout);
+  assert.equal(deferredPayload.kind, "rescue");
+  assert.equal(deferredPayload.status, "failed");
+  assert.match(deferredPayload.error, /Task 9 owns --background\/--wait/);
+});
+
+test("CLI emits JSON error payload for invalid review baseline", async () => {
+  const cwd = await makeTempGitRepo();
+
+  const result = await runCli(["review", "--json", "--against", "bad-ref"], { cwd });
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.kind, "review");
+  assert.equal(payload.status, "failed");
+  assert.match(payload.error, /Invalid git baseline ref "bad-ref"/);
 });
 
 test("prompt-file is read relative to command cwd", async () => {

@@ -78,6 +78,40 @@ function usage() {
   ].join("\n");
 }
 
+function jsonRequested(argv) {
+  return argv.includes("--json");
+}
+
+function errorPayload(argv, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const command = argv[0] ?? "help";
+  const foregroundKind = ["plan", "review", "adversarial-review", "rescue"].includes(command)
+    ? command
+    : "plan";
+  return {
+    kind: foregroundKind,
+    status: "failed",
+    title: "Claude Companion Error",
+    summary: message,
+    text: "",
+    rawOutput: "",
+    rendered: [
+      "# Claude Companion Error",
+      "",
+      "Status: failed",
+      `Error: ${message}`
+    ].join("\n"),
+    findings: [],
+    actions: [],
+    touchedFiles: [],
+    sessionId: null,
+    error: message,
+    metadata: {
+      command
+    }
+  };
+}
+
 async function handleSetup(parsed) {
   const status = await getClaudeStatus({ cwd: process.cwd() });
   const payload = {
@@ -132,7 +166,12 @@ async function main(argv) {
   console.log(JSON.stringify({ command: parsed.command, options: parsed.options, positionals: parsed.positionals }));
 }
 
-main(process.argv.slice(2)).catch((error) => {
+const argv = process.argv.slice(2);
+main(argv).catch((error) => {
+  if (jsonRequested(argv)) {
+    console.log(JSON.stringify(errorPayload(argv, error), null, 2));
+    process.exit(1);
+  }
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
