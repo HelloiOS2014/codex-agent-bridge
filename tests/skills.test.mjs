@@ -36,6 +36,24 @@ test("manifest exposes the skills directory and all expected skills exist", () =
   }
 });
 
+test("README command surface uses plugin root and lists all skills", () => {
+  const readme = read("README.md");
+
+  assert.doesNotMatch(readme, /node scripts\/claude-companion\.mjs/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" setup/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" plan /);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review /);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" adversarial-review /);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --write /);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" status/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" result/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel <job-id>/);
+
+  for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
+    assert.match(readme, new RegExp(`\\b${skill}\\b`));
+  }
+});
+
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
   const plan = read("skills/claude-plan/SKILL.md");
   const review = read("skills/claude-review/SKILL.md");

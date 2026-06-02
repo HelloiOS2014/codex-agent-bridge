@@ -5,15 +5,17 @@ Claude Companion lets Codex delegate planning, code review, adversarial review, 
 Command surface:
 
 ```bash
-node scripts/claude-companion.mjs setup
-node scripts/claude-companion.mjs plan "plan this change"
-node scripts/claude-companion.mjs review --scope working-tree
-node scripts/claude-companion.mjs adversarial-review "challenge this caching design"
-node scripts/claude-companion.mjs rescue --write "fix the failing test"
-node scripts/claude-companion.mjs status
-node scripts/claude-companion.mjs result
-node scripts/claude-companion.mjs cancel <job-id>
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan this change"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --scope working-tree
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review "challenge this caching design"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write "fix the failing test"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id>
 ```
+
+`CLAUDE_PLUGIN_ROOT` must point at this plugin's installed root, so commands do not depend on Codex's current workspace directory.
 
 `plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
 
