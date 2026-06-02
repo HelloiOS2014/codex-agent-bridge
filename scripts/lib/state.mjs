@@ -27,6 +27,12 @@ export function resolveStateDir(workspaceRoot, env = process.env) {
   return path.join(resolveStateRoot(env), `${slug(path.basename(workspaceRoot))}-${hash}`);
 }
 
+export function resolveStateFile(workspaceRoot, env = process.env) {
+  const dir = resolveStateDir(workspaceRoot, env);
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, "state.json");
+}
+
 export function resolveJobsDir(workspaceRoot, env = process.env) {
   return path.join(resolveStateDir(workspaceRoot, env), "jobs");
 }
@@ -59,14 +65,58 @@ export function resolveJobResultFile(workspaceRoot, jobId, env = process.env) {
   return resolveContainedJobPath(workspaceRoot, `${validateJobId(jobId)}.result.json`, env);
 }
 
-export function writeJobFile(workspaceRoot, jobId, payload, env = process.env) {
-  const file = resolveJobFile(workspaceRoot, jobId, env);
-  fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+function writeJsonFileAtomic(file, payload) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(tmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(tmp, file);
   return file;
+}
+
+export function readState(workspaceRoot, env = process.env) {
+  const file = resolveStateFile(workspaceRoot, env);
+  if (!fs.existsSync(file)) {
+    return { version: 1, jobs: [] };
+  }
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  return {
+    version: 1,
+    jobs: Array.isArray(parsed.jobs) ? parsed.jobs : []
+  };
+}
+
+export function writeState(workspaceRoot, state, env = process.env) {
+  return writeJsonFileAtomic(resolveStateFile(workspaceRoot, env), {
+    version: 1,
+    jobs: Array.isArray(state.jobs) ? state.jobs : []
+  });
+}
+
+export function writeJobFile(workspaceRoot, jobId, payload, env = process.env) {
+  return writeJsonFileAtomic(resolveJobFile(workspaceRoot, jobId, env), payload);
 }
 
 export function readJobFile(workspaceRoot, jobId, env = process.env) {
   return JSON.parse(fs.readFileSync(resolveJobFile(workspaceRoot, jobId, env), "utf8"));
+}
+
+export function writeJobResultFile(workspaceRoot, jobId, payload, env = process.env) {
+  return writeJsonFileAtomic(resolveJobResultFile(workspaceRoot, jobId, env), payload);
+}
+
+export function readJobResultFile(workspaceRoot, jobId, env = process.env) {
+  return JSON.parse(fs.readFileSync(resolveJobResultFile(workspaceRoot, jobId, env), "utf8"));
+}
+
+export function upsertJob(workspaceRoot, job, env = process.env) {
+  writeJobFile(workspaceRoot, job.id, job, env);
+  const state = readState(workspaceRoot, env);
+  const jobs = [
+    job,
+    ...state.jobs.filter((entry) => entry?.id !== job.id)
+  ].slice(0, 50);
+  writeState(workspaceRoot, { jobs }, env);
+  return job;
 }
 
 export function appendJobLog(workspaceRoot, jobId, message, env = process.env) {

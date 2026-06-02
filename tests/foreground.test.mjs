@@ -169,14 +169,14 @@ test("CLI emits JSON error payload for invalid json requests", async () => {
   assert.equal(timeoutPayload.status, "failed");
   assert.match(timeoutPayload.error, /Timeout must be a positive integer/);
 
-  const deferred = await runCli(["rescue", "--json", "--background", "later"]);
+  const deferred = await runCli(["rescue", "--json", "--background", "--wait", "later"]);
 
   assert.equal(deferred.status, 1);
   assert.equal(deferred.stderr, "");
   const deferredPayload = JSON.parse(deferred.stdout);
   assert.equal(deferredPayload.kind, "rescue");
   assert.equal(deferredPayload.status, "failed");
-  assert.match(deferredPayload.error, /Task 9 owns --background\/--wait/);
+  assert.match(deferredPayload.error, /mutually exclusive/);
 });
 
 test("CLI emits JSON error payload for invalid review baseline", async () => {
@@ -213,11 +213,12 @@ test("CLI --cwd changes prompt-file resolution and command cwd", async () => {
   assert.match(result.stdout, /from cwd option/);
 });
 
-test("foreground CLI dispatch rejects deferred background flags for Task 9", async () => {
-  const result = await runCli(["plan", "--background", "later"]);
+test("foreground CLI dispatch still handles normal plan after background support exists", async () => {
+  const result = await runCli(["plan", "later"]);
 
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Task 9 owns --background\/--wait/);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Claude Plan/);
+  assert.match(result.stdout, /later/);
 });
 
 test("CLI dispatch smoke renders review output", async () => {

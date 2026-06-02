@@ -1,4 +1,4 @@
-import { resolveJobLogFile, resolveJobResultFile } from "./state.mjs";
+import { resolveJobLogFile, resolveJobResultFile, validateJobId } from "./state.mjs";
 
 const ALLOWED_JOB_KINDS = new Set(["plan", "review", "adversarial-review", "rescue"]);
 
@@ -57,6 +57,7 @@ export function startJobRecord(job, pid) {
 
 export function completeJobRecord(job, result) {
   const status = result.status;
+  const sessionId = result.sessionId ?? result.claudeSessionId ?? job.sessionId ?? null;
   return {
     ...job,
     status,
@@ -64,15 +65,37 @@ export function completeJobRecord(job, result) {
     pid: null,
     endedAt: nowIso(),
     summary: result.summary ?? job.summary,
+    sessionId,
+    claudeSessionId: sessionId,
     touchedFiles: result.touchedFiles ?? job.touchedFiles,
     error: result.error ?? result.errorMessage ?? null,
     result
   };
 }
 
+export function isActiveJob(job) {
+  return job?.status === "queued" || job?.status === "running";
+}
+
+export function findJob(jobs, reference) {
+  const safeReference = validateJobId(reference);
+  const exact = jobs.find((job) => job?.id === safeReference);
+  if (exact) {
+    return exact;
+  }
+  const matches = jobs.filter((job) => typeof job?.id === "string" && job.id.startsWith(safeReference));
+  if (matches.length === 1) {
+    return matches[0];
+  }
+  if (matches.length > 1) {
+    throw new Error(`Job reference "${safeReference}" is ambiguous.`);
+  }
+  throw new Error(`No job found for "${safeReference}".`);
+}
+
 export function summarizeStatus(jobs) {
   const sorted = [...jobs].sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
-  const running = sorted.filter((job) => job.status === "queued" || job.status === "running");
-  const latestFinished = sorted.find((job) => job.status !== "queued" && job.status !== "running") ?? null;
+  const running = sorted.filter(isActiveJob);
+  const latestFinished = sorted.find((job) => !isActiveJob(job)) ?? null;
   return { running, latestFinished, recent: sorted.filter((job) => job.id !== latestFinished?.id).slice(0, 8) };
 }

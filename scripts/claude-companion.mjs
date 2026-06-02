@@ -1,8 +1,18 @@
 #!/usr/bin/env node
 
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib/args.mjs";
+import {
+  cancelJob,
+  createQueuedJob,
+  readSelectedResult,
+  runStoredJob,
+  spawnBackgroundJob,
+  statusSnapshot
+} from "./lib/background.mjs";
 import { getClaudeStatus } from "./lib/claude.mjs";
 import { formatForegroundResult, runForegroundCommand } from "./lib/foreground.mjs";
+import { renderStatus, renderStoredResult } from "./lib/render.mjs";
 
 const COMMAND_CONFIG = {
   setup: { booleanOptions: ["json"], valueOptions: [] },
@@ -112,6 +122,29 @@ function errorPayload(argv, error) {
   };
 }
 
+function foregroundCommand(command) {
+  return ["plan", "review", "adversarial-review", "rescue"].includes(command);
+}
+
+function failedExecutionStatus(status) {
+  return status === "failed" || status === "cancelled";
+}
+
+function assertAtMostOnePositional(parsed, label) {
+  if (parsed.positionals.length > 1) {
+    throw new Error(`${label} accepts at most one job id.`);
+  }
+  return parsed.positionals[0] ?? null;
+}
+
+function printRendered(value, options = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(value, null, 2));
+    return;
+  }
+  console.log(value);
+}
+
 async function handleSetup(parsed) {
   const status = await getClaudeStatus({ cwd: process.cwd() });
   const payload = {
@@ -137,6 +170,98 @@ async function handleSetup(parsed) {
   }
 }
 
+async function executeStoredJob(job) {
+  const config = COMMAND_CONFIG[job.command];
+  if (!config || !foregroundCommand(job.command)) {
+    throw new Error(`Unsupported stored job command: ${job.command}`);
+  }
+  const parsed = parseArgs([job.command, ...(job.args ?? [])], config);
+  return runForegroundCommand(parsed, {
+    cwd: job.cwd,
+    env: process.env
+  });
+}
+
+async function handleDeferredForeground(parsed) {
+  const job = createQueuedJob(parsed, {
+    cwd: process.cwd(),
+    env: process.env
+  });
+
+  if (parsed.options.background) {
+    const running = spawnBackgroundJob(job, {
+      cliPath: fileURLToPath(import.meta.url),
+      env: process.env
+    });
+    if (parsed.options.json) {
+      printRendered({ status: running.status, job: running }, { json: true });
+      return;
+    }
+    console.log(`${running.kind} started in the background as ${running.id}`);
+    return;
+  }
+
+  const completed = await runStoredJob(job.id, {
+    workspaceRoot: job.workspaceRoot,
+    env: process.env,
+    execute: executeStoredJob
+  });
+  const rendered = renderStoredResult(completed.result, { json: Boolean(parsed.options.json) });
+  printRendered(rendered, { json: Boolean(parsed.options.json) });
+  if (failedExecutionStatus(completed.status)) {
+    process.exitCode = 1;
+  }
+}
+
+async function handleRunJob(parsed) {
+  const jobId = assertAtMostOnePositional(parsed, "run-job");
+  if (!jobId) {
+    throw new Error("run-job requires a job id.");
+  }
+  const completed = await runStoredJob(jobId, {
+    workspaceRoot: process.cwd(),
+    env: process.env,
+    execute: executeStoredJob
+  });
+  if (failedExecutionStatus(completed.status)) {
+    process.exitCode = 1;
+  }
+}
+
+function handleStatus(parsed) {
+  const jobId = assertAtMostOnePositional(parsed, "status");
+  const snapshot = statusSnapshot(process.cwd(), {
+    jobId,
+    all: Boolean(parsed.options.all),
+    env: process.env
+  });
+  const rendered = renderStatus(snapshot, { json: Boolean(parsed.options.json) });
+  printRendered(rendered, { json: Boolean(parsed.options.json) });
+}
+
+function handleResult(parsed) {
+  const jobId = assertAtMostOnePositional(parsed, "result");
+  const { result } = readSelectedResult(process.cwd(), {
+    jobId,
+    env: process.env
+  });
+  const rendered = renderStoredResult(result, { json: Boolean(parsed.options.json) });
+  printRendered(rendered, { json: Boolean(parsed.options.json) });
+}
+
+function handleCancel(parsed) {
+  const jobId = assertAtMostOnePositional(parsed, "cancel");
+  if (!jobId) {
+    throw new Error("cancel requires a job id.");
+  }
+  const payload = cancelJob(process.cwd(), jobId, { env: process.env });
+  if (parsed.options.json) {
+    printRendered(payload, { json: true });
+    return;
+  }
+  console.log(payload.message);
+}
+
 async function main(argv) {
   const command = argv[0] ?? "help";
   if (command === "help" || command === "--help") {
@@ -152,7 +277,11 @@ async function main(argv) {
     await handleSetup(parsed);
     return;
   }
-  if (["plan", "review", "adversarial-review", "rescue"].includes(parsed.command)) {
+  if (foregroundCommand(parsed.command)) {
+    if (parsed.options.background || parsed.options.wait) {
+      await handleDeferredForeground(parsed);
+      return;
+    }
     const result = await runForegroundCommand(parsed, {
       cwd: process.cwd(),
       env: process.env
@@ -163,7 +292,23 @@ async function main(argv) {
     }
     return;
   }
-  console.log(JSON.stringify({ command: parsed.command, options: parsed.options, positionals: parsed.positionals }));
+  if (parsed.command === "status") {
+    handleStatus(parsed);
+    return;
+  }
+  if (parsed.command === "result") {
+    handleResult(parsed);
+    return;
+  }
+  if (parsed.command === "cancel") {
+    handleCancel(parsed);
+    return;
+  }
+  if (parsed.command === "run-job") {
+    await handleRunJob(parsed);
+    return;
+  }
+  throw new Error(`Unsupported command: ${parsed.command}`);
 }
 
 const argv = process.argv.slice(2);
