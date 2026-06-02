@@ -7,17 +7,67 @@ const DEFAULT_TITLES = {
   rescue: "Claude Rescue"
 };
 
+const STATUS_VALUES = new Set(["completed", "failed", "cancelled", "running", "queued"]);
+const CANCELLATION_SIGNALS = new Set(["SIGTERM", "SIGINT", "SIGKILL", "SIGHUP", "SIGQUIT"]);
+
+const STATUS_ALIASES = new Map([
+  ["completed", "completed"],
+  ["complete", "completed"],
+  ["done", "completed"],
+  ["ok", "completed"],
+  ["success", "completed"],
+  ["succeeded", "completed"],
+  ["failed", "failed"],
+  ["failure", "failed"],
+  ["error", "failed"],
+  ["errored", "failed"],
+  ["cancel", "cancelled"],
+  ["cancelled", "cancelled"],
+  ["canceled", "cancelled"],
+  ["timedout", "cancelled"],
+  ["timeout", "cancelled"],
+  ["terminated", "cancelled"],
+  ["killed", "cancelled"],
+  ["running", "running"],
+  ["inprogress", "running"],
+  ["active", "running"],
+  ["queued", "queued"],
+  ["pending", "queued"]
+]);
+
+const SEVERITY_ALIASES = new Map([
+  ["0", "critical"],
+  ["p0", "critical"],
+  ["critical", "critical"],
+  ["blocker", "critical"],
+  ["1", "high"],
+  ["p1", "high"],
+  ["high", "high"],
+  ["major", "high"],
+  ["error", "high"],
+  ["2", "medium"],
+  ["p2", "medium"],
+  ["medium", "medium"],
+  ["moderate", "medium"],
+  ["warning", "medium"],
+  ["warn", "medium"],
+  ["3", "low"],
+  ["p3", "low"],
+  ["low", "low"],
+  ["minor", "low"],
+  ["4", "info"],
+  ["p4", "info"],
+  ["info", "info"],
+  ["informational", "info"],
+  ["notice", "info"]
+]);
+
 const SEVERITY_RANK = new Map([
   ["critical", 0],
-  ["blocker", 0],
   ["high", 1],
-  ["major", 1],
   ["medium", 2],
-  ["moderate", 2],
   ["low", 3],
-  ["minor", 3],
-  ["info", 4],
-  ["informational", 4]
+  ["info", 4]
 ]);
 
 function isPlainObject(value) {
@@ -45,6 +95,57 @@ function compactString(value) {
     return String(value);
   }
   return JSON.stringify(value, null, 2);
+}
+
+function sanitizeSingleLine(value, fallback = "") {
+  const sanitized = compactString(value)
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return sanitized || fallback;
+}
+
+function sanitizeMultiline(value) {
+  const sanitized = compactString(value)
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/\s+$/g, ""))
+    .join("\n")
+    .trim();
+  return sanitized;
+}
+
+function normalizeLookupKey(value) {
+  return sanitizeSingleLine(value).toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function isNumericString(value) {
+  return /^[+-]?\d+$/.test(value);
+}
+
+function isCancellationSignal(value) {
+  return CANCELLATION_SIGNALS.has(sanitizeSingleLine(value).toUpperCase());
+}
+
+function hasNonEmptyField(value) {
+  return value !== undefined && value !== null && compactString(value) !== "";
+}
+
+function cloneMetadataValue(value) {
+  try {
+    return cloneJson(value);
+  } catch {
+    return compactString(value);
+  }
+}
+
+function statusResult(status, metadata = {}) {
+  return {
+    ...metadata,
+    status: STATUS_VALUES.has(status) ? status : "failed"
+  };
 }
 
 function stringifyRaw(value) {
@@ -77,16 +178,36 @@ function normalizeKind(kind) {
 }
 
 function normalizeStatus(status, input = {}) {
+  if (!isPlainObject(input)) {
+    input = {};
+  }
+  if (input.timedOut || input.cancelled || input.canceled || input.cancelRequested || input.aborted || isCancellationSignal(input.signal)) {
+    return statusResult("cancelled");
+  }
+  if (hasNonEmptyField(input.signal)) {
+    return statusResult("failed");
+  }
   if (typeof status === "number") {
-    return status === 0 ? "completed" : "failed";
+    return statusResult(status === 0 ? "completed" : "failed");
   }
   if (typeof status === "string" && status.trim()) {
-    return status.trim();
+    const statusText = sanitizeSingleLine(status);
+    if (isNumericString(statusText)) {
+      return statusResult(Number.parseInt(statusText, 10) === 0 ? "completed" : "failed");
+    }
+    if (isCancellationSignal(statusText)) {
+      return statusResult("cancelled");
+    }
+    const aliased = STATUS_ALIASES.get(normalizeLookupKey(statusText));
+    if (aliased) {
+      return statusResult(aliased);
+    }
+    return statusResult("failed", { rawStatus: cloneMetadataValue(status) });
   }
-  if (input.error || input.errorMessage || input.timedOut) {
-    return "failed";
+  if (input.error || hasNonEmptyField(input.errorMessage) || hasNonEmptyField(input.stderr)) {
+    return statusResult("failed");
   }
-  return "completed";
+  return statusResult("completed");
 }
 
 function extractRawOutput(input) {
@@ -175,11 +296,21 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+function normalizeSeverity(value) {
+  const severity = sanitizeSingleLine(value, "info");
+  return SEVERITY_ALIASES.get(normalizeLookupKey(severity)) ?? severity.toLowerCase();
+}
+
+function normalizeLocationPart(value) {
+  const part = sanitizeSingleLine(value);
+  return part || null;
+}
+
 function normalizeFinding(finding, index) {
   if (typeof finding === "string") {
     return {
       severity: "info",
-      title: finding,
+      title: sanitizeSingleLine(finding, "(untitled finding)"),
       detail: "",
       file: null,
       line: null,
@@ -189,14 +320,14 @@ function normalizeFinding(finding, index) {
     };
   }
   const source = isPlainObject(finding) ? finding : {};
-  const severity = compactString(source.severity ?? source.level ?? source.priority ?? "info").toLowerCase() || "info";
+  const severity = normalizeSeverity(source.severity ?? source.level ?? source.priority ?? "info");
   return {
     severity,
-    title: compactString(source.title ?? source.summary ?? source.message ?? source.description ?? "(untitled finding)"),
-    detail: compactString(source.detail ?? source.details ?? source.body ?? source.explanation ?? ""),
-    file: compactString(source.file ?? source.path ?? source.filename ?? source.location?.file) || null,
-    line: source.line ?? source.startLine ?? source.location?.line ?? null,
-    column: source.column ?? source.col ?? source.location?.column ?? null,
+    title: sanitizeSingleLine(source.title ?? source.summary ?? source.message ?? source.description, "(untitled finding)"),
+    detail: sanitizeMultiline(source.detail ?? source.details ?? source.body ?? source.explanation ?? ""),
+    file: normalizeLocationPart(source.file ?? source.path ?? source.filename ?? source.location?.file),
+    line: normalizeLocationPart(source.line ?? source.startLine ?? source.location?.line),
+    column: normalizeLocationPart(source.column ?? source.col ?? source.location?.column),
     metadata: cloneJson(source.metadata ?? {}),
     _index: index
   };
@@ -204,6 +335,14 @@ function normalizeFinding(finding, index) {
 
 function severityWeight(severity) {
   return SEVERITY_RANK.get(String(severity).toLowerCase()) ?? 5;
+}
+
+function locationSortValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 }
 
 function normalizeFindings(...sources) {
@@ -220,7 +359,7 @@ function normalizeFindings(...sources) {
       if (fileDelta !== 0) {
         return fileDelta;
       }
-      const lineDelta = Number(left.line ?? Number.MAX_SAFE_INTEGER) - Number(right.line ?? Number.MAX_SAFE_INTEGER);
+      const lineDelta = locationSortValue(left.line) - locationSortValue(right.line);
       if (lineDelta !== 0) {
         return lineDelta;
       }
@@ -354,7 +493,7 @@ function renderLocation(finding) {
 function renderFinding(finding) {
   const location = renderLocation(finding);
   const suffix = location ? ` - ${location}` : "";
-  const detail = finding.detail ? `\n  ${finding.detail}` : "";
+  const detail = finding.detail ? `\n${finding.detail.split("\n").map((line) => `  ${line}`).join("\n")}` : "";
   return `- [${finding.severity}] ${finding.title}${suffix}${detail}`;
 }
 
@@ -490,7 +629,8 @@ export function normalizeCompanionResult(input = {}, options = {}) {
   const claudeText = pickClaudeText(source, envelope, rawOutput);
   const { structured, parseError: structuredParseError, text } = extractStructured(claudeText);
   const kind = normalizeKind(options.kind ?? source.kind ?? structured.kind);
-  const status = normalizeStatus(source.status ?? structured.status, source);
+  const normalizedStatus = normalizeStatus(source.status ?? structured.status, source);
+  const status = normalizedStatus.status;
   const stderr = isPlainObject(source) ? source.stderr : "";
   const error = buildError(source, status, stderr);
   const metadata = mergeMetadata(
@@ -508,6 +648,9 @@ export function normalizeCompanionResult(input = {}, options = {}) {
   }
   if (structuredParseError) {
     metadata.parseError = structuredParseError;
+  }
+  if (normalizedStatus.rawStatus !== undefined) {
+    metadata.rawStatus = normalizedStatus.rawStatus;
   }
   if (source.signal) {
     metadata.signal = source.signal;

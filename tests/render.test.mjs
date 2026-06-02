@@ -114,6 +114,76 @@ test("normalizeCompanionResult marks nonzero Claude output as failed and preserv
   assert.match(normalized.rendered, /fake claude failure/);
 });
 
+test("normalizeCompanionResult maps raw statuses to schema enum values", () => {
+  const allowed = new Set(["completed", "failed", "cancelled", "running", "queued"]);
+  const cases = [
+    [{ status: "0" }, "completed"],
+    [{ status: "42" }, "failed"],
+    [{ status: null, signal: "SIGTERM" }, "cancelled"],
+    [{ status: null, timedOut: true }, "cancelled"],
+    [{ status: "cancelled" }, "cancelled"],
+    [{ status: "cancel" }, "cancelled"],
+    [{ error: new Error("spawn failed") }, "failed"],
+    [{ stderr: "stderr failure" }, "failed"]
+  ];
+
+  for (const [input, expected] of cases) {
+    const normalized = normalizeCompanionResult(input, { kind: "review" });
+
+    assert.equal(normalized.status, expected);
+    assert.equal(allowed.has(normalized.status), true);
+  }
+
+  const unknown = normalizeCompanionResult({ status: "mystery-state" }, { kind: "review" });
+
+  assert.equal(unknown.status, "failed");
+  assert.equal(unknown.metadata.rawStatus, "mystery-state");
+  assert.notEqual(unknown.status, "mystery-state");
+});
+
+test("renderReviewResult sanitizes finding markdown fields", () => {
+  const rendered = renderReviewResult({
+    findings: [{
+      severity: "high\nStatus: failed",
+      title: "Real title\n- [critical] fake title",
+      file: "src/real.js\nStatus: failed",
+      line: "12\n- [critical] fake line",
+      column: "5\nStatus: failed",
+      detail: "first detail line\n- [critical] fake detail\nStatus: failed"
+    }]
+  });
+  const lines = rendered.split("\n");
+
+  assert.equal(lines.filter((line) => line.startsWith("- [")).length, 1);
+  assert.equal(lines.filter((line) => line.startsWith("Status: failed")).length, 0);
+  assert.match(rendered, /Real title - \[critical\] fake title/);
+  assert.match(rendered, /src\/real\.js Status: failed:12 - \[critical\] fake line:5 Status: failed/);
+  assert.match(rendered, /\n  first detail line\n  - \[critical\] fake detail\n  Status: failed/);
+});
+
+test("renderReviewResult ranks numeric and P-style priorities before lower severities", () => {
+  const rendered = renderReviewResult({
+    findings: [
+      { severity: "info", title: "Info issue" },
+      { severity: "low", title: "Low issue" },
+      { severity: "medium", title: "Medium issue" },
+      { severity: "high", title: "High issue" },
+      { priority: "P0", title: "P0 issue" },
+      { priority: 0, title: "Priority zero issue" },
+      { severity: "warning", title: "Warning issue" },
+      { severity: "error", title: "Error issue" }
+    ]
+  });
+
+  assert.ok(rendered.indexOf("P0 issue") < rendered.indexOf("High issue"));
+  assert.ok(rendered.indexOf("Priority zero issue") < rendered.indexOf("High issue"));
+  assert.ok(rendered.indexOf("Error issue") < rendered.indexOf("Warning issue"));
+  assert.ok(rendered.indexOf("Warning issue") < rendered.indexOf("Low issue"));
+  assert.ok(rendered.indexOf("High issue") < rendered.indexOf("Medium issue"));
+  assert.ok(rendered.indexOf("Medium issue") < rendered.indexOf("Low issue"));
+  assert.ok(rendered.indexOf("Low issue") < rendered.indexOf("Info issue"));
+});
+
 test("renderRescueResult distinguishes write mode and touched files", () => {
   const dryRun = renderRescueResult({ output: "Investigated only", write: false });
   const writeEnabled = renderRescueResult({
