@@ -35,6 +35,10 @@ export function resolveJobLogFile(workspaceRoot, jobId, env = process.env) {
   return path.join(ensureJobsDir(workspaceRoot, env), `${jobId}.log`);
 }
 
+export function resolveJobResultFile(workspaceRoot, jobId, env = process.env) {
+  return path.join(ensureJobsDir(workspaceRoot, env), `${jobId}.result.json`);
+}
+
 export function writeJobFile(workspaceRoot, jobId, payload, env = process.env) {
   const file = resolveJobFile(workspaceRoot, jobId, env);
   fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, "utf8");

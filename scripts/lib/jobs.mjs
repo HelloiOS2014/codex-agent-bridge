@@ -1,28 +1,43 @@
+import { resolveJobLogFile, resolveJobResultFile } from "./state.mjs";
+
 export function nowIso() {
   return new Date().toISOString();
 }
 
-export function createJobRecord({ kind, cwd, workspaceRoot, write, summary = "" }) {
+export function createJobRecord({
+  kind,
+  cwd,
+  workspaceRoot,
+  command = null,
+  args = [],
+  write,
+  summary = "",
+  env = process.env
+}) {
   const id = `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const logPath = workspaceRoot ? resolveJobLogFile(workspaceRoot, id, env) : null;
+  const resultPath = workspaceRoot ? resolveJobResultFile(workspaceRoot, id, env) : null;
   return {
     id,
     kind,
     status: "queued",
-    phase: "queued",
-    pid: null,
     cwd,
-    workspaceRoot,
     createdAt: nowIso(),
     startedAt: null,
-    completedAt: null,
+    endedAt: null,
+    pid: null,
+    command,
+    args: [...args],
+    logPath,
+    resultPath,
+    error: null,
+    phase: "queued",
+    workspaceRoot: workspaceRoot ?? null,
     summary,
     sessionId: null,
     claudeSessionId: null,
-    logFile: null,
-    resultFile: null,
     write: Boolean(write),
-    touchedFiles: [],
-    errorMessage: null
+    touchedFiles: []
   };
 }
 
@@ -31,15 +46,16 @@ export function startJobRecord(job, pid) {
 }
 
 export function completeJobRecord(job, result) {
+  const status = result.status;
   return {
     ...job,
-    status: result.status,
-    phase: result.status === "completed" ? "done" : "failed",
+    status,
+    phase: result.phase ?? (status === "completed" ? "done" : status),
     pid: null,
-    completedAt: nowIso(),
+    endedAt: nowIso(),
     summary: result.summary ?? job.summary,
     touchedFiles: result.touchedFiles ?? job.touchedFiles,
-    errorMessage: result.errorMessage ?? null,
+    error: result.error ?? result.errorMessage ?? null,
     result
   };
 }

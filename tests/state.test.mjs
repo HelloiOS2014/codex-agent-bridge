@@ -1,9 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { makeTempDir } from "./helpers.mjs";
-import { resolveStateDir, writeJobFile, readJobFile, appendJobLog } from "../scripts/lib/state.mjs";
+import {
+  resolveJobResultFile,
+  resolveStateDir,
+  resolveStateRoot,
+  writeJobFile,
+  readJobFile,
+  appendJobLog
+} from "../scripts/lib/state.mjs";
+
+test("resolveStateRoot respects environment priority", () => {
+  const companionRoot = makeTempDir("companion-state-");
+  const codexRoot = makeTempDir("codex-state-");
+  const claudeRoot = makeTempDir("claude-state-");
+
+  assert.equal(resolveStateRoot({
+    CLAUDE_COMPANION_STATE_DIR: companionRoot,
+    CODEX_PLUGIN_DATA: codexRoot,
+    CLAUDE_PLUGIN_DATA: claudeRoot
+  }), companionRoot);
+
+  assert.equal(resolveStateRoot({
+    CODEX_PLUGIN_DATA: codexRoot,
+    CLAUDE_PLUGIN_DATA: claudeRoot
+  }), codexRoot);
+
+  assert.equal(resolveStateRoot({
+    CLAUDE_PLUGIN_DATA: claudeRoot
+  }), claudeRoot);
+
+  assert.equal(resolveStateRoot({}), path.join(os.tmpdir(), "claude-companion"));
+});
 
 test("resolveStateDir uses env root and workspace hash", () => {
   const root = makeTempDir("state-root-");
@@ -27,4 +58,15 @@ test("appendJobLog appends timestamped lines", () => {
   const logFile = appendJobLog("/tmp/workspace-a", "job-1", "started", env);
   const body = fs.readFileSync(logFile, "utf8");
   assert.match(body, /started/);
+});
+
+test("resolveJobResultFile returns a stable result path", () => {
+  const root = makeTempDir("state-root-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: root };
+  const first = resolveJobResultFile("/tmp/workspace-a", "job-1", env);
+  const second = resolveJobResultFile("/tmp/workspace-a", "job-1", env);
+
+  assert.equal(first, second);
+  assert.equal(path.basename(first), "job-1.result.json");
+  assert.equal(path.dirname(first), path.dirname(appendJobLog("/tmp/workspace-a", "job-1", "started", env)));
 });
