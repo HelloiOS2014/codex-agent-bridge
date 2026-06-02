@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+const skillFiles = [
+  "skills/claude-plan/SKILL.md",
+  "skills/claude-review/SKILL.md",
+  "skills/claude-rescue/SKILL.md",
+  "skills/claude-result-handling/SKILL.md"
+];
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function readJson(relativePath) {
+  return JSON.parse(read(relativePath));
+}
+
+test("manifest exposes the skills directory and all expected skills exist", () => {
+  const manifest = readJson(".codex-plugin/plugin.json");
+
+  assert.equal(manifest.skills, "./skills/");
+  assert.equal(Object.hasOwn(manifest, "mcpServers"), false);
+  for (const file of skillFiles) {
+    const body = read(file);
+    assert.match(body, /^---\nname: claude-/);
+    assert.match(body, /description:/);
+    assert.match(body, /node scripts\/claude-companion\.mjs/);
+    assert.match(body, /--json/);
+  }
+});
+
+test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
+  const plan = read("skills/claude-plan/SKILL.md");
+  const review = read("skills/claude-review/SKILL.md");
+  const rescue = read("skills/claude-rescue/SKILL.md");
+
+  assert.match(plan, /Planning is read-only/);
+  assert.doesNotMatch(plan, /--write/);
+
+  assert.match(review, /Normal review and adversarial review are read-only/);
+  assert.match(review, /Do not fix issues/);
+  assert.doesNotMatch(review, /--write/);
+
+  assert.match(rescue, /Rescue defaults to read-only investigation/);
+  assert.match(rescue, /--write/);
+  assert.match(rescue, /explicitly requested by the user/);
+});
+
+test("skill docs include critical safety exclusions", () => {
+  const combined = skillFiles.map(read).join("\n");
+
+  assert.match(combined, /do not start, configure, or invent MCP behavior/i);
+  assert.match(combined, /--mcp-config/);
+  assert.match(combined, /--dangerously-skip-permissions/);
+  assert.match(combined, /--allow-dangerously-skip-permissions/);
+  assert.match(combined, /--dangerously-bypass-approvals-and-sandbox/);
+  assert.match(combined, /--permission-mode bypassPermissions/);
+  assert.match(combined, /broad shell or git write tools in read mode/);
+});
+
+test("skill docs include when-not-to-use guidance", () => {
+  const combined = skillFiles.map(read).join("\n");
+
+  assert.match(combined, /trivial local tasks/i);
+  assert.match(combined, /Claude Code is missing/i);
+  assert.match(combined, /asked not to delegate/i);
+  assert.match(combined, /secrets, credentials, private keys, tokens/i);
+});
+
+test("skill docs include setup, status, result, cancel, background, and wait commands", () => {
+  const combined = skillFiles.map(read).join("\n");
+
+  assert.match(combined, /setup --json/);
+  assert.match(combined, /status "\$JOB_ID" --json/);
+  assert.match(combined, /result "\$JOB_ID" --json/);
+  assert.match(combined, /cancel "\$JOB_ID" --json/);
+  assert.match(combined, /--background --json/);
+  assert.match(combined, /--wait --json/);
+
+  const review = read("skills/claude-review/SKILL.md");
+  assert.match(review, /review --json --scope working-tree/);
+  assert.match(review, /adversarial-review --json --scope auto --prompt "\$FOCUS"/);
+
+  const rescue = read("skills/claude-rescue/SKILL.md");
+  assert.match(rescue, /rescue --json --prompt "\$PROMPT"/);
+  assert.match(rescue, /rescue --write --json --prompt "\$PROMPT"/);
+});

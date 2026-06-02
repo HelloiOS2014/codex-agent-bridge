@@ -1,0 +1,102 @@
+---
+name: claude-rescue
+description: Use when the user explicitly wants Claude Code, through Claude Companion, to investigate, fix, implement, apply a plan, or continue delegated work from inside Codex.
+---
+
+# Claude Rescue
+
+Use this skill to delegate investigation or implementation rescue work to Claude Code through the Claude Companion CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+
+## When To Use
+
+- Use read-only rescue when the user explicitly asks Claude Code to investigate, diagnose, reproduce, or propose a fix.
+- Use write-enabled rescue only when the user explicitly asks Claude Code to fix, implement, edit, change code, apply a plan, or continue write-capable delegated work.
+- Prefer foreground for narrow investigation and background for long debugging or implementation work.
+
+## When Not To Use
+
+- Do not use for trivial local tasks that Codex can safely handle directly.
+- Do not use when Claude Code is missing or setup reports `ready: false`; run setup and report the blocker instead.
+- Do not use when the user asked not to delegate or not to use Claude.
+- Do not send secrets, credentials, private keys, tokens, or sensitive prompts when delegation would be unsafe.
+
+## Safety Defaults
+
+- Rescue defaults to read-only investigation.
+- Add `--write` only when write access was explicitly requested by the user.
+- Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
+- Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
+- Do not grant broad shell or git write tools in read mode; read-only rescue uses the companion read profile.
+- In write-enabled rescue, keep changes scoped to the user request and inspect the companion result before presenting it.
+
+## Setup Check
+
+Before the first delegated rescue in a workspace, run:
+
+```bash
+node scripts/claude-companion.mjs setup --json
+```
+
+If invoking from outside the plugin root, use:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
+```
+
+If setup is not ready, report the setup blocker and do not delegate rescue work.
+
+## Commands
+
+Read-only investigation with machine-readable output:
+
+```bash
+node scripts/claude-companion.mjs rescue --json --prompt "$PROMPT"
+```
+
+Write-enabled rescue, only after explicit user request:
+
+```bash
+node scripts/claude-companion.mjs rescue --write --json --prompt "$PROMPT"
+```
+
+Resume the latest safe companion rescue job for this workspace:
+
+```bash
+node scripts/claude-companion.mjs rescue --resume --json
+```
+
+Force a fresh rescue session:
+
+```bash
+node scripts/claude-companion.mjs rescue --fresh --json --prompt "$PROMPT"
+```
+
+Use an absolute plugin-root path when the current working directory is the target project:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --json --prompt "$PROMPT"
+```
+
+For long-running rescue:
+
+```bash
+node scripts/claude-companion.mjs rescue --background --json --prompt "$PROMPT"
+node scripts/claude-companion.mjs rescue --background --write --json --prompt "$PROMPT"
+```
+
+Use `--wait` when the job should be tracked and Codex should wait for completion:
+
+```bash
+node scripts/claude-companion.mjs rescue --wait --json --prompt "$PROMPT"
+node scripts/claude-companion.mjs rescue --wait --write --json --prompt "$PROMPT"
+```
+
+After a background job starts, report the job id and use:
+
+```bash
+node scripts/claude-companion.mjs status "$JOB_ID" --json
+node scripts/claude-companion.mjs result "$JOB_ID" --json
+node scripts/claude-companion.mjs cancel "$JOB_ID" --json
+```
+
+For write-enabled results, report changed files, verification, residual risk, and any follow-up Codex must still perform. Do not stage, commit, or revert files unless the user explicitly asks.
