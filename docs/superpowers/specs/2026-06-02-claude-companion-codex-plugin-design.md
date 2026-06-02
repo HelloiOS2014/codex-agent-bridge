@@ -64,6 +64,14 @@ Skills:
 
 The skills should call the companion CLI rather than embedding direct `claude` invocations. This keeps behavior testable and consistent.
 
+Skill commands must invoke the companion through an absolute plugin root path, not through the user's current working directory. The preferred command form is:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/claude-companion.mjs" <command> ...
+```
+
+If Codex exposes a different plugin-root environment variable during implementation, the skills must use that verified variable instead. Do not rely on `scripts/claude-companion.mjs` being reachable from the repository under review.
+
 ## Companion CLI
 
 Command surface:
@@ -79,24 +87,38 @@ node scripts/claude-companion.mjs result [job-id] [--json]
 node scripts/claude-companion.mjs cancel [job-id] [--json]
 ```
 
-The CLI must support prompt input from positionals, `--prompt-file`, and piped stdin where useful. It should use `spawn` with argv arrays, not shell string construction, for Claude and git calls.
+Commands with natural-language input (`plan`, `adversarial-review`, and `rescue`) must support prompt input from positionals, `--prompt-file`, and piped stdin. `review` accepts target-selection flags only; custom focus text belongs in `adversarial-review`. The companion should use `spawn` with argv arrays, not shell string construction, for Claude and git calls.
+
+The CLI may also expose internal worker commands that skills never call directly, for example:
+
+```bash
+node scripts/claude-companion.mjs run-job <job-id>
+```
+
+Internal commands must validate that the job file exists, belongs to the resolved workspace, and was created by this companion before doing work.
 
 ## Permission Model
 
 Read-only is enforced by command design, tool restrictions, and context collection, not only by prompt wording.
 
+Tool profiles:
+
+- `none`: no Claude tools. Used when the companion has already collected all required context.
+- `read`: allow repository reading and safe git inspection only, such as `Read`, `Glob`, `Grep`, and `Bash(git *)`.
+- `write`: allow read tools plus file-editing tools only for `rescue --write`; do not include dangerous bypass modes.
+
 `plan`:
 
 - Always read-only.
 - Claude may read repository context if the invocation permits read tools.
-- Claude must not receive edit/write tools.
+- Claude uses the `read` profile. It must not receive edit/write tools.
 - The prompt states that the expected output is a plan or design, not a patch.
 
 `review`:
 
 - Always read-only.
 - The companion collects git context first: status, diff, changed files, branch/base metadata, and selected untracked text files.
-- Claude reviews the collected context. It does not need broad write-capable access.
+- Claude reviews the collected context with the `none` profile by default. If future implementation adds optional context expansion, it may use only the `read` profile.
 - The output is findings and risk analysis only.
 
 `adversarial-review`:
@@ -111,6 +133,7 @@ Read-only is enforced by command design, tool restrictions, and context collecti
 - `--write` is required for Claude Code to edit files.
 - Skills add `--write` only when the user explicitly asks Claude to fix, implement, change code, apply a plan, or continue write-capable work.
 - The companion must reject dangerous bypass flags and must not expose a passthrough that can smuggle them.
+- `rescue --write` uses the `write` profile. Plain `rescue` uses the `read` profile.
 
 Setup, status, result, and cancel do not touch project files. They may write companion state outside the project tree.
 
@@ -124,6 +147,10 @@ Setup checks:
 - `claude --version`.
 - `claude auth status`.
 - Node.js version.
+- Plugin root resolution.
+- Writable companion state directory.
+
+Setup reports install or login guidance, but it does not install Claude Code or alter authentication unless a future command explicitly adds an opt-in install flow.
 
 Invocation strategy:
 
@@ -151,6 +178,15 @@ Rules:
 - Include untracked text files up to a bounded byte limit.
 - Skip binary files and directories with explicit notes.
 
+Default review collection limits:
+
+- Inline untracked text file content: 24 KiB per file.
+- Inline combined diff content: 256 KiB.
+- Inline full diff file count: 20 files.
+- Always include `git status --short`, shortstat, and changed-file lists even when full diff content is truncated.
+
+When truncation happens, the rendered output and JSON metadata must say what was omitted.
+
 ## State Management
 
 The companion stores state outside the project by default.
@@ -158,8 +194,9 @@ The companion stores state outside the project by default.
 State root priority:
 
 1. `CLAUDE_COMPANION_STATE_DIR`
-2. Codex/plugin data directory if available in the environment
-3. `$TMPDIR/claude-companion`
+2. `CODEX_PLUGIN_DATA` if Codex provides it
+3. `CLAUDE_PLUGIN_DATA` if running in a compatible Claude plugin environment
+4. `$TMPDIR/claude-companion`
 
 Each workspace gets an isolated state directory based on the real workspace path plus a stable hash.
 
@@ -204,6 +241,8 @@ Background mode:
 - Writes progress to the job log.
 - Stores rendered and raw output on completion.
 - Supports `status`, `result`, and `cancel`.
+
+The public command creates the job record and launches the internal worker command. The worker performs the actual Claude invocation and updates the stored job. This avoids duplicating foreground/background execution logic in skills.
 
 `cancel` should terminate the process tree for an active job and mark the job cancelled. It must not delete logs or results.
 
