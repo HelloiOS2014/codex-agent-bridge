@@ -19,4 +19,13 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id>
 
 `plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
 
+## Safety Model
+
+- `plan`, `review`, and `adversarial-review` are read-only companion commands.
+- `rescue` is read-only unless `--write` is present.
+- Dangerous Claude Code bypass flags are rejected by the companion.
+- Do not automatically apply Claude output, and do not stage, commit, or push from companion flows.
+- Job state is stored outside the reviewed project by default.
+- The plugin is CLI-only and does not use MCP.
+
 Codex skill guidance lives in [`skills/`](skills/): `claude-plan`, `claude-review`, `claude-rescue`, and `claude-result-handling`.

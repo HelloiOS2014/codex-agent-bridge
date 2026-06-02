@@ -24,6 +24,7 @@ Use this skill to delegate planning to Claude Code through the Claude Companion 
 
 - Planning is read-only.
 - Do not ask Claude to edit files, create commits, or run write commands.
+- Do not automatically apply Claude output, stage files, create commits, or push changes from planning flows.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; the companion plan command owns the allowed read profile.

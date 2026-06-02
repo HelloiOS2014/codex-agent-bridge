@@ -52,6 +52,11 @@ test("README command surface uses plugin root and lists all skills", () => {
   for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
     assert.match(readme, new RegExp(`\\b${skill}\\b`));
   }
+
+  assert.match(readme, /Safety Model/);
+  assert.match(readme, /Do not automatically apply Claude output/);
+  assert.match(readme, /stage, commit, or push/);
+  assert.match(readme, /does not use MCP/);
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
@@ -75,6 +80,8 @@ test("skill docs include critical safety exclusions", () => {
   const combined = skillFiles.map(read).join("\n");
 
   assert.match(combined, /do not start, configure, or invent MCP behavior/i);
+  assert.match(combined, /automatically apply/i);
+  assert.match(combined, /push changes/i);
   assert.match(combined, /--mcp-config/);
   assert.match(combined, /--dangerously-skip-permissions/);
   assert.match(combined, /--allow-dangerously-skip-permissions/);

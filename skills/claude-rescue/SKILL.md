@@ -24,6 +24,8 @@ Use this skill to delegate investigation or implementation rescue work to Claude
 
 - Rescue defaults to read-only investigation.
 - Add `--write` only when write access was explicitly requested by the user.
+- Do not automatically apply patch text returned by Claude; only `rescue --write` grants Claude a scoped write run after explicit user request.
+- Do not stage files, create commits, or push changes from rescue flows.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; read-only rescue uses the companion read profile.
@@ -87,4 +89,4 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
-For write-enabled results, report changed files, verification, residual risk, and any follow-up Codex must still perform. Do not stage, commit, or revert files unless the user explicitly asks.
+For write-enabled results, report changed files, verification, residual risk, and any follow-up Codex must still perform. Do not stage, commit, push, or revert files unless the user explicitly asks.
