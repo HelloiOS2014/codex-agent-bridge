@@ -2,16 +2,40 @@ import { spawn } from "node:child_process";
 
 export function runCommand(command, args = [], options = {}) {
   return new Promise((resolve) => {
+    let timedOut = false;
+    let timeout = null;
+    let settled = false;
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       detached: false
     });
 
     let stdout = "";
     let stderr = "";
 
+    function finish(result) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      resolve({ timedOut, ...result });
+    }
+
+    if (Number.isInteger(options.timeoutMs) && options.timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill(options.killSignal ?? "SIGTERM");
+      }, options.timeoutMs);
+    }
+
+    if (options.stdin !== undefined) {
+      child.stdin?.end(options.stdin);
+    }
     child.stdout?.on("data", (chunk) => {
       stdout += chunk.toString("utf8");
     });
@@ -19,10 +43,10 @@ export function runCommand(command, args = [], options = {}) {
       stderr += chunk.toString("utf8");
     });
     child.on("error", (error) => {
-      resolve({ status: null, signal: null, stdout, stderr, error });
+      finish({ status: null, signal: timedOut ? (options.killSignal ?? "SIGTERM") : null, stdout, stderr, error });
     });
     child.on("close", (status, signal) => {
-      resolve({ status, signal, stdout, stderr, error: null });
+      finish({ status: timedOut ? null : status, signal, stdout, stderr, error: null });
     });
   });
 }
