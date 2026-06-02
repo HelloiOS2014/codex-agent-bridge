@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import {
   completeJobRecord,
+  compareJobsByLatestActivity,
   createJobRecord,
   findJob,
   isActiveJob,
@@ -12,6 +13,7 @@ import { terminateProcessTree } from "./process.mjs";
 import { normalizeCompanionResult } from "./render.mjs";
 import {
   appendJobLog,
+  listJobFileIds,
   readJobFile,
   readJobResultFile,
   readState,
@@ -47,11 +49,7 @@ function jobRoot(job, fallbackRoot) {
 }
 
 function sortedJobs(jobs) {
-  return [...jobs].sort((left, right) => {
-    const leftTime = left.endedAt ?? left.createdAt ?? "";
-    const rightTime = right.endedAt ?? right.createdAt ?? "";
-    return String(rightTime).localeCompare(String(leftTime));
-  });
+  return [...jobs].sort(compareJobsByLatestActivity);
 }
 
 function messageFromError(error) {
@@ -118,7 +116,7 @@ function failStaleActiveJob(job, workspaceRoot, env) {
 }
 
 function reconcileActiveJob(job, workspaceRoot, env) {
-  if (!isActiveJob(job)) {
+  if (job?.status !== "running") {
     return job;
   }
   if (processPidIsLive(job.pid)) {
@@ -181,18 +179,36 @@ export function spawnBackgroundJob(job, options = {}) {
 
 export function listJobs(workspaceRoot, env = process.env) {
   const state = readState(workspaceRoot, env);
-  const jobs = [];
+  const jobsById = new Map();
+  const orderedIds = [];
+  const addJob = (job) => {
+    if (!job?.id) {
+      return;
+    }
+    if (!jobsById.has(job.id)) {
+      orderedIds.push(job.id);
+    }
+    jobsById.set(job.id, job);
+  };
+
   for (const entry of state.jobs) {
     if (!entry?.id) {
       continue;
     }
     try {
-      jobs.push(readJobFile(workspaceRoot, entry.id, env));
+      addJob(readJobFile(workspaceRoot, entry.id, env));
     } catch {
-      jobs.push(entry);
+      addJob(entry);
     }
   }
-  return jobs;
+  for (const jobId of listJobFileIds(workspaceRoot, env)) {
+    try {
+      addJob(readJobFile(workspaceRoot, jobId, env));
+    } catch {
+      // Ignore malformed or concurrently replaced job files; state entries above remain available as a cache.
+    }
+  }
+  return orderedIds.map((jobId) => jobsById.get(jobId));
 }
 
 export function statusSnapshot(workspaceRoot, options = {}) {
@@ -252,8 +268,8 @@ export async function runStoredJob(jobId, options = {}) {
 
   let job = readJobFile(workspaceRoot, safeJobId, env);
   const root = jobRoot(job, workspaceRoot);
-  if (job.status === "cancelled") {
-    appendJobLog(root, job.id, "worker skipped cancelled job", env);
+  if (!isActiveJob(job)) {
+    appendJobLog(root, job.id, `worker skipped ${job.status} job`, env);
     return job;
   }
 

@@ -108,6 +108,25 @@ export function readJobResultFile(workspaceRoot, jobId, env = process.env) {
   return JSON.parse(fs.readFileSync(resolveJobResultFile(workspaceRoot, jobId, env), "utf8"));
 }
 
+export function listJobFileIds(workspaceRoot, env = process.env) {
+  const dir = resolveJobsDir(workspaceRoot, env);
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && !entry.name.endsWith(".result.json"))
+    .map((entry) => entry.name.slice(0, -".json".length))
+    .filter((jobId) => {
+      try {
+        validateJobId(jobId);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .sort();
+}
+
 export function upsertJob(workspaceRoot, job, env = process.env) {
   writeJobFile(workspaceRoot, job.id, job, env);
   const state = readState(workspaceRoot, env);

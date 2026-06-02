@@ -144,3 +144,31 @@ test("summarizeStatus includes running and latest finished jobs", () => {
   assert.equal(summary.latestFinished.id, "completed");
   assert.deepEqual(summary.recent.map((job) => job.id), ["failed", "running", "queued"]);
 });
+
+test("summarizeStatus orders finished jobs by endedAt before createdAt", () => {
+  const earlyFinished = {
+    id: "early-finished",
+    kind: "review",
+    status: "failed",
+    createdAt: "2026-06-02T05:00:00.000Z",
+    endedAt: "2026-06-02T05:01:00.000Z"
+  };
+  const lateFinished = {
+    id: "late-finished",
+    kind: "plan",
+    status: "completed",
+    createdAt: "2026-06-02T04:00:00.000Z",
+    endedAt: "2026-06-02T05:02:00.000Z"
+  };
+  const queued = {
+    id: "queued-after-finish",
+    kind: "plan",
+    status: "queued",
+    createdAt: "2026-06-02T05:03:00.000Z",
+    endedAt: null
+  };
+  const summary = summarizeStatus([earlyFinished, lateFinished, queued]);
+
+  assert.equal(summary.latestFinished.id, "late-finished");
+  assert.deepEqual(summary.recent.map((job) => job.id), ["queued-after-finish", "early-finished"]);
+});

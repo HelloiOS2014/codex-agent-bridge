@@ -93,8 +93,18 @@ export function findJob(jobs, reference) {
   throw new Error(`No job found for "${safeReference}".`);
 }
 
+export function compareJobsByLatestActivity(left, right) {
+  const leftTime = left?.endedAt ?? left?.createdAt ?? "";
+  const rightTime = right?.endedAt ?? right?.createdAt ?? "";
+  const timeOrder = String(rightTime).localeCompare(String(leftTime));
+  if (timeOrder !== 0) {
+    return timeOrder;
+  }
+  return String(right?.id ?? "").localeCompare(String(left?.id ?? ""));
+}
+
 export function summarizeStatus(jobs) {
-  const sorted = [...jobs].sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  const sorted = [...jobs].sort(compareJobsByLatestActivity);
   const running = sorted.filter(isActiveJob);
   const latestFinished = sorted.find((job) => !isActiveJob(job)) ?? null;
   return { running, latestFinished, recent: sorted.filter((job) => job.id !== latestFinished?.id).slice(0, 8) };
