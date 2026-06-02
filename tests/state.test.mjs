@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { makeTempDir } from "./helpers.mjs";
 import {
+  resolveJobFile,
+  resolveJobLogFile,
   resolveJobResultFile,
   resolveStateDir,
   resolveStateRoot,
@@ -69,4 +71,17 @@ test("resolveJobResultFile returns a stable result path", () => {
   assert.equal(first, second);
   assert.equal(path.basename(first), "job-1.result.json");
   assert.equal(path.dirname(first), path.dirname(appendJobLog("/tmp/workspace-a", "job-1", "started", env)));
+});
+
+test("job path helpers reject unsafe job identifiers", () => {
+  const root = makeTempDir("state-root-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: root };
+  const workspaceRoot = "/tmp/workspace-a";
+  const unsafeJobIds = ["", "..", "../escape", "job/escape", "job\\escape", "job id", "job:1"];
+
+  for (const jobId of unsafeJobIds) {
+    assert.throws(() => resolveJobFile(workspaceRoot, jobId, env), /Invalid job id/);
+    assert.throws(() => resolveJobLogFile(workspaceRoot, jobId, env), /Invalid job id/);
+    assert.throws(() => resolveJobResultFile(workspaceRoot, jobId, env), /Invalid job id/);
+  }
 });

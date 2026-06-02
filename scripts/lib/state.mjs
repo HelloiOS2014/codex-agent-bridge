@@ -7,6 +7,16 @@ function slug(value) {
   return String(value || "workspace").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "workspace";
 }
 
+export function validateJobId(jobId) {
+  if (typeof jobId !== "string" || jobId.length === 0) {
+    throw new Error("Invalid job id: expected a non-empty safe filename identifier");
+  }
+  if (jobId === ".." || jobId.includes("/") || jobId.includes("\\") || !/^[a-zA-Z0-9_-]+$/.test(jobId)) {
+    throw new Error(`Invalid job id: ${jobId}`);
+  }
+  return jobId;
+}
+
 export function resolveStateRoot(env = process.env) {
   return env.CLAUDE_COMPANION_STATE_DIR || env.CODEX_PLUGIN_DATA || env.CLAUDE_PLUGIN_DATA || path.join(os.tmpdir(), "claude-companion");
 }
@@ -27,16 +37,26 @@ export function ensureJobsDir(workspaceRoot, env = process.env) {
   return dir;
 }
 
+function resolveContainedJobPath(workspaceRoot, filename, env = process.env) {
+  const jobsDir = path.resolve(ensureJobsDir(workspaceRoot, env));
+  const file = path.resolve(jobsDir, filename);
+  const relative = path.relative(jobsDir, file);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`Resolved job path escapes jobs directory: ${filename}`);
+  }
+  return file;
+}
+
 export function resolveJobFile(workspaceRoot, jobId, env = process.env) {
-  return path.join(ensureJobsDir(workspaceRoot, env), `${jobId}.json`);
+  return resolveContainedJobPath(workspaceRoot, `${validateJobId(jobId)}.json`, env);
 }
 
 export function resolveJobLogFile(workspaceRoot, jobId, env = process.env) {
-  return path.join(ensureJobsDir(workspaceRoot, env), `${jobId}.log`);
+  return resolveContainedJobPath(workspaceRoot, `${validateJobId(jobId)}.log`, env);
 }
 
 export function resolveJobResultFile(workspaceRoot, jobId, env = process.env) {
-  return path.join(ensureJobsDir(workspaceRoot, env), `${jobId}.result.json`);
+  return resolveContainedJobPath(workspaceRoot, `${validateJobId(jobId)}.result.json`, env);
 }
 
 export function writeJobFile(workspaceRoot, jobId, payload, env = process.env) {

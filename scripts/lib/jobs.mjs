@@ -1,5 +1,14 @@
 import { resolveJobLogFile, resolveJobResultFile } from "./state.mjs";
 
+const ALLOWED_JOB_KINDS = new Set(["plan", "review", "adversarial-review", "rescue"]);
+
+export function validateJobKind(kind) {
+  if (typeof kind !== "string" || !ALLOWED_JOB_KINDS.has(kind)) {
+    throw new Error(`Invalid job kind: ${kind}`);
+  }
+  return kind;
+}
+
 export function nowIso() {
   return new Date().toISOString();
 }
@@ -14,12 +23,13 @@ export function createJobRecord({
   summary = "",
   env = process.env
 }) {
-  const id = `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const safeKind = validateJobKind(kind);
+  const id = `${safeKind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const logPath = workspaceRoot ? resolveJobLogFile(workspaceRoot, id, env) : null;
   const resultPath = workspaceRoot ? resolveJobResultFile(workspaceRoot, id, env) : null;
   return {
     id,
-    kind,
+    kind: safeKind,
     status: "queued",
     cwd,
     createdAt: nowIso(),

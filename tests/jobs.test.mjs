@@ -82,6 +82,19 @@ test("createJobRecord leaves paths null without a workspace root", () => {
   assert.equal(job.resultPath, null);
 });
 
+test("createJobRecord validates job kind before creating an id", () => {
+  for (const kind of ["plan", "review", "adversarial-review", "rescue"]) {
+    assert.equal(createJobRecord({ kind, cwd: "/tmp/repo", command: "claude", args: [] }).kind, kind);
+  }
+
+  for (const kind of ["", "status", "../plan", "plan/review", "review\\plan"]) {
+    assert.throws(
+      () => createJobRecord({ kind, cwd: "/tmp/repo", command: "claude", args: [] }),
+      /Invalid job kind/
+    );
+  }
+});
+
 test("completeJobRecord stores result and updates endedAt and error", () => {
   const job = startJobRecord(createJobRecord({
     kind: "review",
