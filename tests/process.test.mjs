@@ -15,6 +15,13 @@ test("runCommand captures non-zero status", async () => {
   assert.equal(result.stderr, "bad");
 });
 
+test("runCommand captures spawn errors with null status and signal", async () => {
+  const result = await runCommand("__missing_claude_companion_binary__", []);
+  assert.equal(result.status, null);
+  assert.equal(result.signal, null);
+  assert.ok(result.error);
+});
+
 test("binaryAvailable returns true for node", async () => {
   const result = await binaryAvailable(process.execPath, ["--version"]);
   assert.equal(result.available, true);

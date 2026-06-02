@@ -19,7 +19,7 @@ export function runCommand(command, args = [], options = {}) {
       stderr += chunk.toString("utf8");
     });
     child.on("error", (error) => {
-      resolve({ status: null, stdout, stderr, error });
+      resolve({ status: null, signal: null, stdout, stderr, error });
     });
     child.on("close", (status, signal) => {
       resolve({ status, signal, stdout, stderr, error: null });
