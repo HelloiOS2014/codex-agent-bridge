@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { makeTempDir, makeTempGitRepo } from "./helpers.mjs";
-import { collectReviewContext, resolveBaselineRef } from "../scripts/lib/git-context.mjs";
+import { collectReviewContext, resolveBaselineRef, resolveReviewTarget } from "../scripts/lib/git-context.mjs";
 
 async function git(cwd, args) {
   const { runCommand } = await import("../scripts/lib/process.mjs");
@@ -18,6 +18,10 @@ async function commitFile(cwd, relativePath, content, message) {
   await git(cwd, ["commit", "-m", message]);
 }
 
+function indexMtimeNs(cwd) {
+  return fs.statSync(path.join(cwd, ".git", "index"), { bigint: true }).mtimeNs;
+}
+
 test("resolveBaselineRef prefers explicit against ref", async () => {
   const cwd = await makeTempGitRepo();
   await commitFile(cwd, "README.md", "initial\nsecond\n", "second");
@@ -27,6 +31,15 @@ test("resolveBaselineRef prefers explicit against ref", async () => {
   assert.equal(baseline.ref, "HEAD~1");
   assert.equal(baseline.source, "explicit");
   assert.match(baseline.commit, /^[0-9a-f]{40}$/);
+});
+
+test("git context rejects invalid explicit against refs", async () => {
+  const cwd = await makeTempGitRepo();
+  const expectedError = /Invalid git baseline ref "bad-ref".*Verify the ref exists and points to a commit/s;
+
+  await assert.rejects(() => resolveBaselineRef(cwd, { against: "bad-ref" }), expectedError);
+  await assert.rejects(() => collectReviewContext(cwd, { against: "bad-ref" }), expectedError);
+  await assert.rejects(() => resolveReviewTarget(cwd, { against: "bad-ref" }), expectedError);
 });
 
 test("collectReviewContext includes explicit baseline diff and branch", async () => {
@@ -127,6 +140,55 @@ test("collectReviewContext extracts committed, staged, unstaged, and untracked f
     context.changedFileDetails.map((file) => `${file.source}:${file.path}`).sort(),
     ["baseline:committed.txt", "staged:staged.txt", "unstaged:README.md", "untracked:untracked.txt"]
   );
+});
+
+test("collectReviewContext preserves edge-case changed filenames", async () => {
+  const cwd = await makeTempGitRepo();
+  const trackedUnstagedPath = "  tracked-工作.txt";
+  const baselinePath = "  baseline-说明.txt";
+  const stagedPath = "line\nbreak.txt";
+  const untrackedPath = "  untracked-临时.txt";
+
+  await commitFile(cwd, trackedUnstagedPath, "tracked\n", "add tracked edge path");
+  await commitFile(cwd, baselinePath, "baseline\n", "add baseline edge path");
+  fs.writeFileSync(path.join(cwd, trackedUnstagedPath), "tracked\nunstaged\n", "utf8");
+  fs.writeFileSync(path.join(cwd, stagedPath), "staged\n", "utf8");
+  await git(cwd, ["add", stagedPath]);
+  fs.writeFileSync(path.join(cwd, untrackedPath), "untracked\n", "utf8");
+
+  const context = await collectReviewContext(cwd, { against: "HEAD~1" });
+
+  assert.deepEqual(
+    new Set(context.changedFiles),
+    new Set([baselinePath, stagedPath, trackedUnstagedPath, untrackedPath])
+  );
+  assert.deepEqual(
+    context.changedFileDetails.map((file) => `${file.source}:${file.path}`).sort(),
+    [
+      `baseline:${baselinePath}`,
+      `staged:${stagedPath}`,
+      `unstaged:${trackedUnstagedPath}`,
+      `untracked:${untrackedPath}`
+    ].sort()
+  );
+  const changedFilesSection = context.content.match(/## Changed Files\n(?<body>.*?)\n\n## Diff Summary/s).groups.body;
+  assert.match(changedFilesSection, /"line\\nbreak\.txt"/);
+  assert.doesNotMatch(changedFilesSection, /^line$/m);
+  assert.doesNotMatch(changedFilesSection, /^break\.txt$/m);
+});
+
+test("collectReviewContext does not refresh the git index", async () => {
+  const cwd = await makeTempGitRepo();
+  const trackedPath = path.join(cwd, "README.md");
+  const before = indexMtimeNs(cwd);
+  const future = new Date(Date.now() + 60_000);
+
+  fs.utimesSync(trackedPath, future, future);
+  assert.equal(indexMtimeNs(cwd), before);
+
+  await collectReviewContext(cwd, {});
+
+  assert.equal(indexMtimeNs(cwd), before);
 });
 
 test("collectReviewContext includes untracked text file content in full diff", async () => {

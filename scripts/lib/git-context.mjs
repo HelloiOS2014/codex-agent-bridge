@@ -1,14 +1,11 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { runCommand } from "./process.mjs";
 
 export const DEFAULT_MAX_DIFF_BYTES = 256 * 1024;
 export const DEFAULT_MAX_UNTRACKED_FILE_BYTES = 32 * 1024;
 const BINARY_SAMPLE_BYTES = 8192;
-
-function cleanLines(value) {
-  return value.split("\n").map((line) => line.trim()).filter(Boolean);
-}
 
 function unique(values) {
   return [...new Set(values)];
@@ -18,21 +15,76 @@ function byteLimit(value, fallback) {
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 }
 
-async function git(cwd, args) {
-  return runCommand("git", args, { cwd });
+async function git(cwd, args, options = {}) {
+  return runCommand("git", ["--no-optional-locks", ...args], {
+    cwd,
+    env: {
+      ...process.env,
+      GIT_OPTIONAL_LOCKS: "0",
+      ...(options.env ?? {})
+    }
+  });
 }
 
-async function gitStdout(cwd, args) {
-  const result = await git(cwd, args);
+async function gitRawStdout(cwd, args, options = {}) {
+  const result = await git(cwd, args, options);
   if (result.status !== 0 || result.error) {
     return null;
   }
-  return result.stdout.trimEnd();
+  return result.stdout;
 }
 
-async function gitLines(cwd, args) {
-  const stdout = await gitStdout(cwd, args);
-  return stdout ? cleanLines(stdout) : [];
+async function gitStdout(cwd, args, options = {}) {
+  const stdout = await gitRawStdout(cwd, args, options);
+  if (stdout === null) {
+    return null;
+  }
+  return stdout.trimEnd();
+}
+
+function nulSeparatedPaths(value) {
+  return value ? value.split("\0").filter((filePath) => filePath.length > 0) : [];
+}
+
+async function gitPaths(cwd, args, options = {}) {
+  const stdout = await gitRawStdout(cwd, args, options);
+  return stdout === null ? [] : nulSeparatedPaths(stdout);
+}
+
+async function getGitIndexPath(repoRoot) {
+  const absoluteIndexPath = await gitStdout(repoRoot, ["rev-parse", "--path-format=absolute", "--git-path", "index"]);
+  if (absoluteIndexPath) {
+    return absoluteIndexPath;
+  }
+
+  const indexPath = await gitStdout(repoRoot, ["rev-parse", "--git-path", "index"]);
+  return indexPath ? path.resolve(repoRoot, indexPath) : null;
+}
+
+async function withTemporaryGitIndex(repoRoot, fn) {
+  const indexPath = await getGitIndexPath(repoRoot);
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-companion-index-"));
+  const tempIndex = path.join(tempDir, "index");
+
+  try {
+    if (indexPath) {
+      try {
+        await fs.copyFile(indexPath, tempIndex);
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
+
+    return await fn({
+      env: {
+        GIT_INDEX_FILE: tempIndex
+      }
+    });
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 async function getRepoRoot(cwd) {
@@ -54,6 +106,12 @@ function emptyBaseline(source = "none") {
   };
 }
 
+function invalidBaselineRefError(ref) {
+  return new Error(
+    `Invalid git baseline ref "${ref}". Verify the ref exists and points to a commit before collecting git review context.`
+  );
+}
+
 export async function resolveBaselineRef(cwd, options = {}) {
   const repoRoot = await getRepoRoot(path.resolve(cwd));
   if (!repoRoot) {
@@ -63,11 +121,14 @@ export async function resolveBaselineRef(cwd, options = {}) {
   const explicitRef = options.against ?? options.base ?? null;
   if (explicitRef) {
     const commit = await resolveCommit(repoRoot, explicitRef);
+    if (!commit) {
+      throw invalidBaselineRefError(explicitRef);
+    }
     return {
       ref: explicitRef,
       commit,
       source: "explicit",
-      available: Boolean(commit)
+      available: true
     };
   }
 
@@ -98,12 +159,12 @@ export async function isGitRepository(cwd) {
   return Boolean(await getRepoRoot(path.resolve(cwd)));
 }
 
-async function getCurrentBranch(repoRoot) {
-  const branch = await gitStdout(repoRoot, ["branch", "--show-current"]);
+async function getCurrentBranch(repoRoot, gitOptions = {}) {
+  const branch = await gitStdout(repoRoot, ["branch", "--show-current"], gitOptions);
   if (branch) {
     return branch;
   }
-  const head = await gitStdout(repoRoot, ["rev-parse", "--short", "HEAD"]);
+  const head = await gitStdout(repoRoot, ["rev-parse", "--short", "HEAD"], gitOptions);
   return head ? `HEAD detached at ${head}` : null;
 }
 
@@ -111,13 +172,17 @@ function detail(source, filePath, status = null) {
   return { path: filePath, source, status };
 }
 
-async function getChangedFileDetails(repoRoot, baseline) {
+function formatPathForContent(filePath) {
+  return /[\u0000-\u001f\u007f]/.test(filePath) ? JSON.stringify(filePath) : filePath;
+}
+
+async function getChangedFileDetails(repoRoot, baseline, gitOptions = {}) {
   const baselineFiles = baseline.available
-    ? await gitLines(repoRoot, ["diff", "--name-only", `${baseline.commit}..HEAD`])
+    ? await gitPaths(repoRoot, ["diff", "--name-only", "-z", `${baseline.commit}..HEAD`], gitOptions)
     : [];
-  const stagedFiles = await gitLines(repoRoot, ["diff", "--cached", "--name-only"]);
-  const unstagedFiles = await gitLines(repoRoot, ["diff", "--name-only"]);
-  const untrackedFiles = await gitLines(repoRoot, ["ls-files", "--others", "--exclude-standard"]);
+  const stagedFiles = await gitPaths(repoRoot, ["diff", "--cached", "--name-only", "-z"], gitOptions);
+  const unstagedFiles = await gitPaths(repoRoot, ["diff", "--name-only", "-z"], gitOptions);
+  const untrackedFiles = await gitPaths(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"], gitOptions);
 
   return [
     ...baselineFiles.map((file) => detail("baseline", file)),
@@ -127,17 +192,17 @@ async function getChangedFileDetails(repoRoot, baseline) {
   ];
 }
 
-async function getDiffParts(repoRoot, baseline) {
+async function getDiffParts(repoRoot, baseline, gitOptions = {}) {
   const parts = [];
 
   if (baseline.available) {
-    const baselineSummary = await gitStdout(repoRoot, ["diff", "--shortstat", `${baseline.commit}..HEAD`]);
+    const baselineSummary = await gitStdout(repoRoot, ["diff", "--shortstat", `${baseline.commit}..HEAD`], gitOptions);
     const baselineDiff = await gitStdout(repoRoot, [
       "diff",
       "--no-ext-diff",
       "--submodule=diff",
       `${baseline.commit}..HEAD`
-    ]);
+    ], gitOptions);
     if (baselineSummary || baselineDiff) {
       parts.push({
         title: `Baseline Diff (${baseline.ref})`,
@@ -147,8 +212,8 @@ async function getDiffParts(repoRoot, baseline) {
     }
   }
 
-  const stagedSummary = await gitStdout(repoRoot, ["diff", "--cached", "--shortstat"]);
-  const stagedDiff = await gitStdout(repoRoot, ["diff", "--cached", "--no-ext-diff", "--submodule=diff"]);
+  const stagedSummary = await gitStdout(repoRoot, ["diff", "--cached", "--shortstat"], gitOptions);
+  const stagedDiff = await gitStdout(repoRoot, ["diff", "--cached", "--no-ext-diff", "--submodule=diff"], gitOptions);
   if (stagedSummary || stagedDiff) {
     parts.push({
       title: "Staged Diff",
@@ -157,8 +222,8 @@ async function getDiffParts(repoRoot, baseline) {
     });
   }
 
-  const unstagedSummary = await gitStdout(repoRoot, ["diff", "--shortstat"]);
-  const unstagedDiff = await gitStdout(repoRoot, ["diff", "--no-ext-diff", "--submodule=diff"]);
+  const unstagedSummary = await gitStdout(repoRoot, ["diff", "--shortstat"], gitOptions);
+  const unstagedDiff = await gitStdout(repoRoot, ["diff", "--no-ext-diff", "--submodule=diff"], gitOptions);
   if (unstagedSummary || unstagedDiff) {
     parts.push({
       title: "Unstaged Diff",
@@ -281,11 +346,11 @@ function skipReasonText(reason) {
 
 function skippedUntrackedEntry(filePath, reason, bytes = null) {
   const byteText = typeof bytes === "number" ? `; ${bytes} bytes` : "";
-  return [`### ${filePath}`, `(skipped: ${skipReasonText(reason)}${byteText})`].join("\n");
+  return [`### ${formatPathForContent(filePath)}`, `(skipped: ${skipReasonText(reason)}${byteText})`].join("\n");
 }
 
 function includedUntrackedEntry(filePath, content, maxFileBytes, truncated, omittedBytes) {
-  const lines = [`### ${filePath}`, content || "(empty)"];
+  const lines = [`### ${formatPathForContent(filePath)}`, content || "(empty)"];
   if (truncated) {
     lines.push(`(truncated at ${maxFileBytes} bytes; omitted ${omittedBytes} bytes)`);
   }
@@ -399,7 +464,7 @@ function formatContent(context) {
     context.worktreeStatus || "(clean)",
     "",
     "## Changed Files",
-    context.changedFiles.length > 0 ? context.changedFiles.join("\n") : "(none)",
+    context.changedFiles.length > 0 ? context.changedFiles.map(formatPathForContent).join("\n") : "(none)",
     "",
     "## Diff Summary",
     context.diffSummary || "(none)",
@@ -443,42 +508,44 @@ export async function collectReviewContext(cwd, options = {}) {
   }
 
   const baseline = await resolveBaselineRef(repoRoot, options);
-  const currentBranch = await getCurrentBranch(repoRoot);
-  const worktreeStatus = await gitStdout(repoRoot, ["status", "--short", "--untracked-files=all"]);
-  const changedFileDetails = await getChangedFileDetails(repoRoot, baseline);
-  const changedFiles = unique(changedFileDetails.map((file) => file.path)).sort();
-  const diffParts = await getDiffParts(repoRoot, baseline);
-  const untrackedContext = await getUntrackedFileContext(repoRoot, changedFileDetails, {
-    maxUntrackedFileBytes
-  });
-  if (untrackedContext.part) {
-    diffParts.push(untrackedContext.part);
-  }
-  const fullDiffRaw = formatFullDiff(diffParts);
-  const truncatedDiff = truncateByBytes(fullDiffRaw, maxDiffBytes);
-
-  const context = {
-    cwd: absoluteCwd,
-    repoRoot,
-    isGitRepository: true,
-    currentBranch,
-    baseline,
-    worktreeStatus: worktreeStatus || "",
-    changedFiles,
-    changedFileDetails,
-    diffSummary: formatDiffSummary(diffParts),
-    fullDiff: truncatedDiff.value,
-    diffTruncated: truncatedDiff.truncated,
-    truncated: truncatedDiff.truncated,
-    metadata: {
-      maxDiffBytes,
-      originalDiffBytes: truncatedDiff.originalBytes,
-      omittedDiffBytes: truncatedDiff.omittedBytes,
-      untrackedFiles: untrackedContext.metadata
+  return withTemporaryGitIndex(repoRoot, async (gitOptions) => {
+    const currentBranch = await getCurrentBranch(repoRoot, gitOptions);
+    const worktreeStatus = await gitStdout(repoRoot, ["status", "--short", "--untracked-files=all"], gitOptions);
+    const changedFileDetails = await getChangedFileDetails(repoRoot, baseline, gitOptions);
+    const changedFiles = unique(changedFileDetails.map((file) => file.path)).sort();
+    const diffParts = await getDiffParts(repoRoot, baseline, gitOptions);
+    const untrackedContext = await getUntrackedFileContext(repoRoot, changedFileDetails, {
+      maxUntrackedFileBytes
+    });
+    if (untrackedContext.part) {
+      diffParts.push(untrackedContext.part);
     }
-  };
+    const fullDiffRaw = formatFullDiff(diffParts);
+    const truncatedDiff = truncateByBytes(fullDiffRaw, maxDiffBytes);
 
-  return { ...context, content: formatContent(context) };
+    const context = {
+      cwd: absoluteCwd,
+      repoRoot,
+      isGitRepository: true,
+      currentBranch,
+      baseline,
+      worktreeStatus: worktreeStatus || "",
+      changedFiles,
+      changedFileDetails,
+      diffSummary: formatDiffSummary(diffParts),
+      fullDiff: truncatedDiff.value,
+      diffTruncated: truncatedDiff.truncated,
+      truncated: truncatedDiff.truncated,
+      metadata: {
+        maxDiffBytes,
+        originalDiffBytes: truncatedDiff.originalBytes,
+        omittedDiffBytes: truncatedDiff.omittedBytes,
+        untrackedFiles: untrackedContext.metadata
+      }
+    };
+
+    return { ...context, content: formatContent(context) };
+  });
 }
 
 export async function resolveReviewTarget(cwd, options = {}) {
