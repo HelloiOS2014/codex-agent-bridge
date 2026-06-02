@@ -1,12 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { createJobRecord } from "../scripts/lib/jobs.mjs";
+import { completeJobRecord, createJobRecord, startJobRecord } from "../scripts/lib/jobs.mjs";
+import { spawnBackgroundJob } from "../scripts/lib/background.mjs";
 import {
   readJobFile,
+  readJobResultFile,
   resolveStateDir,
-  writeJobFile
+  writeJobFile,
+  writeJobResultFile
 } from "../scripts/lib/state.mjs";
 import { makeTempDir, repoRoot, runCli } from "./helpers.mjs";
 
@@ -44,6 +48,17 @@ function persistManualJob(workspaceRoot, job, env) {
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(path.join(stateDir, "state.json"), `${JSON.stringify({ version: 1, jobs: [job] }, null, 2)}\n`, "utf8");
   writeJobFile(workspaceRoot, job.id, job, env);
+}
+
+async function makeDeadPid() {
+  const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
+  const pid = child.pid;
+  assert.ok(Number.isInteger(pid) && pid > 1);
+  await new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
+  return pid;
 }
 
 test("background plan creates a running job and result can be read in human and json modes", async () => {
@@ -166,6 +181,81 @@ test("run-job executes a stored job and exits nonzero when stored work fails", a
   const storedFailure = readJobFile(workspaceRoot, failingJob.id, env);
   assert.equal(storedFailure.status, "failed");
   assert.match(storedFailure.result.rendered, /fake claude failure/);
+});
+
+test("status reconciles active jobs with dead pids as failed", async () => {
+  const stateDir = makeTempDir("background-stale-state-");
+  const workspaceRoot = makeTempDir("background-stale-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const deadPid = await makeDeadPid();
+  const job = startJobRecord(createJobRecord({
+    kind: "plan",
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: "plan",
+    args: ["stale", "pid"],
+    env
+  }), deadPid);
+  persistManualJob(workspaceRoot, job, env);
+
+  const status = await runCli(["status", job.id, "--json"], { cwd: workspaceRoot, stateDir });
+
+  assert.equal(status.status, 0);
+  assert.equal(status.stderr, "");
+  const snapshot = JSON.parse(status.stdout);
+  assert.equal(snapshot.job.status, "failed");
+  assert.equal(snapshot.job.pid, null);
+  assert.match(snapshot.job.endedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(snapshot.job.error, /no safe live process id/i);
+
+  const stored = readJobFile(workspaceRoot, job.id, env);
+  assert.equal(stored.status, "failed");
+  assert.equal(stored.pid, null);
+  const result = readJobResultFile(workspaceRoot, job.id, env);
+  assert.equal(result.status, "failed");
+  assert.match(result.error, /no safe live process id/i);
+  assert.match(fs.readFileSync(stored.logPath, "utf8"), /reconciled stale active job/i);
+});
+
+test("spawnBackgroundJob does not overwrite terminal state from a fast worker", () => {
+  const stateDir = makeTempDir("background-fast-worker-state-");
+  const workspaceRoot = makeTempDir("background-fast-worker-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const job = createJobRecord({
+    kind: "plan",
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: "plan",
+    args: ["fast", "worker"],
+    env
+  });
+  persistManualJob(workspaceRoot, job, env);
+
+  const result = {
+    kind: "plan",
+    status: "completed",
+    summary: "fast worker completed",
+    rendered: "fast worker completed",
+    metadata: { jobId: job.id }
+  };
+  writeJobResultFile(workspaceRoot, job.id, result, env);
+  const completed = completeJobRecord(job, result);
+  persistManualJob(workspaceRoot, completed, env);
+
+  const workerDir = makeTempDir("background-fast-worker-bin-");
+  const workerPath = path.join(workerDir, "worker.mjs");
+  fs.writeFileSync(workerPath, "process.exit(0);\n", "utf8");
+
+  const returned = spawnBackgroundJob(job, {
+    cliPath: workerPath,
+    env
+  });
+
+  assert.equal(returned.status, "completed");
+  const stored = readJobFile(workspaceRoot, job.id, env);
+  assert.equal(stored.status, "completed");
+  assert.equal(stored.pid, null);
+  assert.equal(readJobResultFile(workspaceRoot, job.id, env).summary, "fast worker completed");
 });
 
 test("status supports explicit, all, and json modes", async () => {

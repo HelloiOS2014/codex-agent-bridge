@@ -58,6 +58,23 @@ function messageFromError(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function safeProcessPid(value) {
+  return Number.isInteger(value) && value > 1 ? value : null;
+}
+
+function processPidIsLive(value) {
+  const pid = safeProcessPid(value);
+  if (pid === null) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
 function failedResult(job, error) {
   const message = messageFromError(error);
   return normalizeCompanionResult({
@@ -81,6 +98,37 @@ function cancelledResult(job, message) {
     error: message,
     metadata: { jobId: job.id }
   }, { kind: job.kind });
+}
+
+function staleActiveJobMessage(job) {
+  const pid = job.pid === null || job.pid === undefined ? "none" : String(job.pid);
+  return `Job ${job.id} marked failed because active status ${job.status} has no safe live process id (pid ${pid}).`;
+}
+
+function failStaleActiveJob(job, workspaceRoot, env) {
+  validateJobId(job.id);
+  const root = jobRoot(job, workspaceRoot);
+  const message = staleActiveJobMessage(job);
+  const result = failedResult(job, new Error(message));
+  writeJobResultFile(root, job.id, result, env);
+  const failed = completeJobRecord(job, result);
+  upsertJob(root, failed, env);
+  appendJobLog(root, failed.id, `reconciled stale active job: ${message}`, env);
+  return failed;
+}
+
+function reconcileActiveJob(job, workspaceRoot, env) {
+  if (!isActiveJob(job)) {
+    return job;
+  }
+  if (processPidIsLive(job.pid)) {
+    return job;
+  }
+  return failStaleActiveJob(job, workspaceRoot, env);
+}
+
+function reconcileActiveJobs(workspaceRoot, jobs, env) {
+  return jobs.map((job) => reconcileActiveJob(job, workspaceRoot, env));
 }
 
 export function createQueuedJob(parsed, runtime = {}) {
@@ -113,10 +161,21 @@ export function spawnBackgroundJob(job, options = {}) {
     detached: true,
     stdio: "ignore"
   });
-  const running = startJobRecord(job, child.pid);
+  child.unref();
+  const root = jobRoot(job);
+  let current = job;
+  try {
+    current = readJobFile(root, job.id, env);
+  } catch {
+    current = job;
+  }
+  if (!isActiveJob(current)) {
+    appendJobLog(root, current.id, `worker reached ${current.status} before parent recorded pid ${child.pid}`, env);
+    return current;
+  }
+  const running = startJobRecord(current, child.pid);
   upsertJob(jobRoot(running), running, env);
   appendJobLog(jobRoot(running), running.id, `spawned worker pid ${child.pid}`, env);
-  child.unref();
   return running;
 }
 
@@ -138,7 +197,7 @@ export function listJobs(workspaceRoot, env = process.env) {
 
 export function statusSnapshot(workspaceRoot, options = {}) {
   const env = options.env ?? process.env;
-  const jobs = listJobs(workspaceRoot, env);
+  const jobs = reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env);
   if (options.jobId) {
     const job = findJob(jobs, options.jobId);
     return {
