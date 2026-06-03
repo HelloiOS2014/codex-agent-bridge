@@ -69,7 +69,8 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Troubleshooting/);
   assert.match(readme, /codex plugin marketplace add git@github\.com:HelloiOS2014\/claude_work\.git --ref codex\/claude-companion-plugin/);
   assert.match(readme, /codex plugin marketplace add "\$\(pwd\)"/);
-  assert.match(readme, /codex plugin marketplace list/);
+  assert.match(readme, /codex plugin marketplace upgrade claude-companion-local/);
+  assert.doesNotMatch(readme, /codex plugin marketplace list/);
   assert.match(readme, /claude-companion-local/);
   assert.match(readme, /personal-local/);
   assert.match(readme, /\.agents\/plugins\/marketplace\.json/);

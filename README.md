@@ -32,8 +32,9 @@ This repository includes a local marketplace file at `.agents/plugins/marketplac
 
 ```bash
 codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref codex/claude-companion-plugin
-codex plugin marketplace list
 ```
+
+The command should print `Added marketplace` and an `Installed marketplace root` path.
 
 Then install the plugin:
 
@@ -271,7 +272,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 
 ## Troubleshooting
 
-- Plugin does not appear: run `codex plugin marketplace list`, confirm the marketplace root is present, then restart Codex.
+- Plugin does not appear: run `codex plugin marketplace upgrade claude-companion-local`, confirm the original `marketplace add` command printed an installed marketplace root, then restart Codex.
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
 - `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.
 - Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
