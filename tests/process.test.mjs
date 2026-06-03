@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runCommand, binaryAvailable, terminateProcessTree } from "../plugins/claude-companion/scripts/lib/process.mjs";
+import { runCommand, binaryAvailable, terminateProcessTree } from "../plugins/agent-bridge/scripts/lib/process.mjs";
 
 test("runCommand captures stdout and exit status", async () => {
   const result = await runCommand(process.execPath, ["-e", "console.log('ok')"]);

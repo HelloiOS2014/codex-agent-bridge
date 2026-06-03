@@ -217,7 +217,7 @@ export async function runRescueForeground(parsed, runtime = {}) {
   const cwd = resolveCwd(parsed, runtime);
   let userPrompt = readPrompt(parsed, cwd);
   if (!userPrompt && parsed.options.resume) {
-    userPrompt = "Continue the previous Claude Companion rescue task.";
+    userPrompt = "Continue the previous Agent Bridge rescue task.";
   }
   if (!userPrompt) {
     throw new Error("Provide a rescue prompt or --resume.");

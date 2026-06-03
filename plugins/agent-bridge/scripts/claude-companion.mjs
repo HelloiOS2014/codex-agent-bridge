@@ -102,12 +102,12 @@ function errorPayload(argv, error) {
   return {
     kind: foregroundKind,
     status: "failed",
-    title: "Claude Companion Error",
+    title: "Agent Bridge Error",
     summary: message,
     text: "",
     rawOutput: "",
     rendered: [
-      "# Claude Companion Error",
+      "# Agent Bridge Error",
       "",
       "Status: failed",
       `Error: ${message}`
@@ -162,7 +162,7 @@ async function handleSetup(parsed) {
     return;
   }
 
-  console.log(payload.ready ? "Claude Companion setup: ready" : "Claude Companion setup: not ready");
+  console.log(payload.ready ? "Agent Bridge setup: ready" : "Agent Bridge setup: not ready");
   if (status.available) {
     const version = status.version.stdout.trim() || "version unavailable";
     console.log(`Claude: ${version}`);

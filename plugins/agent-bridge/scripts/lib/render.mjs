@@ -724,7 +724,7 @@ export function renderSetupResult(status, options = {}) {
   }
   const ready = Boolean(payload.ready);
   const lines = [
-    `Claude Companion setup: ${ready ? "ready" : "not ready"}`,
+    `Agent Bridge setup: ${ready ? "ready" : "not ready"}`,
     payload.claude?.available === false ? "Claude: not found" : "",
     payload.claude?.version?.stdout ? `Claude: ${payload.claude.version.stdout.trim()}` : "",
     payload.claude?.available && payload.claude?.auth?.loggedIn === false ? "Claude auth: not logged in" : ""

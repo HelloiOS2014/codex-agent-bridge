@@ -1,13 +1,13 @@
-# Claude Companion Codex Plugin
+# Codex Agent Bridge
 
-Claude Companion is a Codex plugin for delegating planning, code review, adversarial review, and explicitly write-enabled rescue work to local Claude Code.
+Agent Bridge is a Codex plugin for delegating planning, code review, adversarial review, and explicitly write-enabled rescue work to local agent CLIs.
 
-The plugin is skill-driven and CLI-only. It does not use MCP.
+The plugin is skill-driven and CLI-only. It does not use MCP. The current bundled adapter uses Claude Code; the repository and marketplace names are intentionally generic so additional local agents can be added later.
 
 ## Requirements
 
 - Node.js 18.18 or newer.
-- Local Claude Code CLI installed and authenticated.
+- Local Claude Code CLI installed and authenticated for the current Claude adapter.
 - Codex must expose the plugin root as `CLAUDE_PLUGIN_ROOT` when skills call the companion CLI.
 - Optional: set `CLAUDE_COMPANION_CLAUDE_BIN` if `claude` is not on `PATH`.
 
@@ -26,7 +26,7 @@ claude auth login
 
 ## Installation
 
-This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json`; the installable plugin package lives at `plugins/claude-companion/`.
+This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json`; the installable plugin package lives at `plugins/agent-bridge/`.
 
 ### Codex App
 
@@ -35,43 +35,44 @@ In the Codex app:
 1. Open **Plugins** from the sidebar.
 2. Click **Create** and choose **Add plugin marketplace**.
 3. Fill the dialog:
-   - Source: `git@github.com:HelloiOS2014/claude_work.git`
+   - Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
    - Git ref: `main`
-   - Sparse path: leave empty. Do not enter `plugins/claude-companion`, `plugins/codex`, or `.agents/plugins`.
+   - Sparse path: leave empty. Do not enter `plugins/agent-bridge`, `plugins/codex`, or `.agents/plugins`.
 4. Click **Add marketplace**.
-5. Choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
+5. Choose the **Agent Bridge** source, open **Agent Bridge**, and select **Add to Codex**.
 6. Restart Codex or start a new thread so the bundled skills are loaded.
 
 ### Codex CLI
 
 ```bash
-codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref main
+codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main
 ```
 
-Then open Codex **Plugins**, choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
+Then open Codex **Plugins**, choose the **Agent Bridge** source, open **Agent Bridge**, and select **Add to Codex**.
 
-If you previously added the old feature-branch marketplace from an earlier README, remove the old entry and add the main-branch marketplace again:
+If you previously added an older marketplace from an earlier README, remove the old entry and add the main-branch marketplace again:
 
 ```bash
+codex plugin marketplace remove codex-agent-bridge
 codex plugin marketplace remove claude-work
 codex plugin marketplace remove claude-companion-local
-codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref main
+codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main
 ```
 
 Refresh the marketplace snapshot:
 
 ```bash
-codex plugin marketplace upgrade claude-work
+codex plugin marketplace upgrade codex-agent-bridge
 ```
 
-Do not use `--sparse .agents/plugins` for this repository. Codex needs both `.agents/plugins/marketplace.json` and `plugins/claude-companion/`, so leave sparse path empty.
+Do not use `--sparse .agents/plugins` for this repository. Codex needs both `.agents/plugins/marketplace.json` and `plugins/agent-bridge/`, so leave sparse path empty.
 
 ### Verify Installation
 
 Start a new Codex thread and run one of these prompts:
 
 ```text
-Check Claude Companion setup.
+Check Agent Bridge setup.
 Ask Claude to plan a small README cleanup.
 Ask Claude to review my current changes.
 ```
@@ -86,7 +87,7 @@ Expected result: `ready: true`, which means Claude Code is available and authent
 
 ## How Codex Uses It
 
-After the plugin is installed and enabled, Codex loads the skills in [`plugins/claude-companion/skills/`](plugins/claude-companion/skills/). The skills route natural-language requests to the companion CLI.
+After the plugin is installed and enabled, Codex loads the skills in [`plugins/agent-bridge/skills/`](plugins/agent-bridge/skills/). The current skills route natural-language requests to the Claude Code adapter.
 
 Use these request patterns in Codex:
 
@@ -108,7 +109,7 @@ Skill mapping:
 
 ## Direct CLI Usage
 
-The skills call the CLI through `CLAUDE_PLUGIN_ROOT`. Direct use should do the same so commands do not depend on the reviewed repository's current directory.
+The skills call the adapter CLI through `CLAUDE_PLUGIN_ROOT`. Direct use should do the same so commands do not depend on the reviewed repository's current directory.
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
@@ -177,12 +178,14 @@ Job state is stored outside the reviewed project. State root priority:
 
 Each workspace gets a hashed state directory. Job ids are safe filename identifiers and are validated before reading or writing job files.
 
+These state variable names belong to the current Claude Code adapter and may be generalized when additional adapters are added.
+
 ## Safety Model
 
 - `plan`, `review`, and `adversarial-review` are read-only companion commands.
 - `rescue` is read-only unless `--write` is present.
 - `rescue --write` is only for explicit user requests to edit or implement.
-- Dangerous Claude Code bypass flags are rejected by the companion.
+- Dangerous Claude Code bypass flags are rejected by the current adapter.
 - Do not automatically apply Claude output, and do not stage, commit, or push from companion flows.
 - Job management commands do not edit project files.
 - The plugin is CLI-only and does not use MCP.
@@ -206,7 +209,7 @@ npm run check:manifest
 Local smoke tests can use the deterministic fake Claude fixture:
 
 ```bash
-export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-companion"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/agent-bridge"
 export CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan the plugin"
@@ -223,7 +226,7 @@ printf "initial\n" > "$tmpdir/README.md"
 git -C "$tmpdir" add README.md
 git -C "$tmpdir" commit -q -m initial
 printf "changed\n" > "$tmpdir/changed.txt"
-export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-companion"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/agent-bridge"
 CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
   node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --cwd "$tmpdir" --scope working-tree
 ```
@@ -231,11 +234,11 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 ## Repository Layout
 
 - `.agents/plugins/marketplace.json`: local marketplace entry for installing this repository as a Codex plugin source.
-- `plugins/claude-companion/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
-- `plugins/claude-companion/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
-- `plugins/claude-companion/scripts/claude-companion.mjs`: CLI entrypoint.
-- `plugins/claude-companion/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
-- `plugins/claude-companion/schemas/review-output.schema.json`: normalized result schema.
+- `plugins/agent-bridge/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
+- `plugins/agent-bridge/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
+- `plugins/agent-bridge/scripts/claude-companion.mjs`: current Claude Code adapter CLI entrypoint.
+- `plugins/agent-bridge/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
+- `plugins/agent-bridge/schemas/review-output.schema.json`: normalized result schema.
 - `tests/`: fake Claude fixture and automated tests.
 - `AGENTS.md`: maintenance rules for future agents.
 
@@ -246,9 +249,9 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 
 ## Troubleshooting
 
-- Plugin does not appear in the Codex app: restart Codex and choose the **Claude Work** source. If you added an older marketplace, remove `claude-work` or `claude-companion-local` and add the current main-branch marketplace again.
-- CLI-managed marketplace is stale: run `codex plugin marketplace upgrade claude-work`.
+- Plugin does not appear in the Codex app: restart Codex and choose the **Agent Bridge** source. If you added an older marketplace, remove `codex-agent-bridge`, `claude-work`, or `claude-companion-local` and add the current main-branch marketplace again.
+- CLI-managed marketplace is stale: run `codex plugin marketplace upgrade codex-agent-bridge`.
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
 - `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.
 - Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
-- Local copy is stale: run `codex plugin marketplace upgrade claude-work`, then restart Codex.
+- Local copy is stale: run `codex plugin marketplace upgrade codex-agent-bridge`, then restart Codex.

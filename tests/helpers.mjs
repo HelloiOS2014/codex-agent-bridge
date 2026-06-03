@@ -2,10 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { runCommand } from "../plugins/claude-companion/scripts/lib/process.mjs";
+import { runCommand } from "../plugins/agent-bridge/scripts/lib/process.mjs";
 
 export const repoRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-export const pluginRoot = path.join(repoRoot, "plugins", "claude-companion");
+export const pluginRoot = path.join(repoRoot, "plugins", "agent-bridge");
 export const cliPath = path.join(pluginRoot, "scripts", "claude-companion.mjs");
 export const fixtureClaudePath = path.join(repoRoot, "tests", "fake-claude-fixture.mjs");
 

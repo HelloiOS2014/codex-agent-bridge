@@ -1,13 +1,13 @@
 {
-  "name": "claude-companion",
+  "name": "agent-bridge",
   "version": "0.1.0",
-  "description": "Use Claude Code from Codex for planning, review, and delegated rescue work.",
+  "description": "Bridge Codex to local agent CLIs for planning, review, and delegated rescue work.",
   "author": {
     "name": "JOYY"
   },
   "license": "MIT",
   "keywords": [
-    "claude-code",
+    "agents",
     "codex",
     "planning",
     "review",
@@ -15,9 +15,9 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Claude Companion",
-    "shortDescription": "Delegate planning, review, and rescue work from Codex to Claude Code",
-    "longDescription": "Claude Companion lets Codex invoke local Claude Code for architecture planning, code review, adversarial review, and explicitly write-enabled delegated tasks while keeping plan and review commands read-only.",
+    "displayName": "Agent Bridge",
+    "shortDescription": "Delegate planning, review, and rescue work from Codex to local agents",
+    "longDescription": "Agent Bridge lets Codex invoke local agent CLIs for architecture planning, code review, adversarial review, and explicitly write-enabled delegated tasks. The current bundled adapter uses Claude Code while keeping plan and review commands read-only.",
     "developerName": "JOYY",
     "category": "Developer Tools",
     "capabilities": [
