@@ -59,7 +59,7 @@ Then choose the **Claude Code Bridge** source, open **Claude Code Bridge**, and 
 codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main
 ```
 
-Then open Codex **Plugins**, choose the **Agent Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
+This registers the marketplace only. The current Codex CLI does not install or enable an individual plugin from a marketplace. After adding the marketplace, open Codex **Plugins**, choose the **Agent Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
 
 For single-plugin installation:
 
@@ -85,6 +85,40 @@ codex plugin marketplace upgrade codex-agent-bridge
 ```
 
 Do not use `--sparse .agents/plugins` for this repository. Use an empty sparse path for the full Agent Bridge marketplace, or `--sparse plugins/claude-code-bridge` for the single Claude Code Bridge plugin.
+
+### Install on Another Machine
+
+Use this sequence on a fresh machine:
+
+1. Install and authenticate Claude Code:
+
+   ```bash
+   claude --version
+   claude auth status
+   ```
+
+2. Add the Git marketplace with either the Codex app or CLI:
+
+   ```bash
+   codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main
+   ```
+
+3. In the Codex app, open **Plugins**, choose the **Agent Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
+4. Restart Codex or start a new thread so the bundled skills are loaded.
+5. For later updates, run:
+
+   ```bash
+   codex plugin marketplace upgrade codex-agent-bridge
+   ```
+
+Codex App and Codex CLI share the same Codex home configuration. A correct full marketplace registration appears in `~/.codex/config.toml` like this:
+
+```toml
+[marketplaces.codex-agent-bridge]
+source_type = "git"
+source = "git@github.com:HelloiOS2014/codex-agent-bridge.git"
+ref = "main"
+```
 
 ### Verify Installation
 

@@ -69,6 +69,12 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Git ref: `main`/);
   assert.match(readme, /Sparse path: leave empty for the full Agent Bridge marketplace/);
   assert.match(readme, /Sparse path: `plugins\/claude-code-bridge`/);
+  assert.match(readme, /Install on Another Machine/);
+  assert.match(readme, /registers the marketplace only/);
+  assert.match(readme, /current Codex CLI does not install or enable an individual plugin/);
+  assert.match(readme, /Codex App and Codex CLI share the same Codex home configuration/);
+  assert.match(readme, /\[marketplaces\.codex-agent-bridge\]/);
+  assert.match(readme, /source_type = "git"/);
   assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
