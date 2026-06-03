@@ -192,6 +192,22 @@ test("CLI emits JSON error payload for invalid review baseline", async () => {
   assert.match(payload.error, /Invalid git baseline ref "bad-ref"/);
 });
 
+test("setup human output does not ask users to configure Claude binary paths", async () => {
+  const result = await runCli(["setup"], {
+    env: {
+      CLAUDE_COMPANION_CLAUDE_BIN: "__missing_claude_for_setup_message__"
+    }
+  });
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Claude Code Bridge setup: not ready/);
+  assert.match(result.stdout, /Claude: not found/);
+  assert.match(result.stdout, /common local install locations/);
+  assert.doesNotMatch(result.stdout, /set CLAUDE_COMPANION_CLAUDE_BIN/i);
+  assert.doesNotMatch(result.stdout, /PATH/);
+  assert.doesNotMatch(result.stdout, /Install Claude Code/i);
+});
+
 test("prompt-file is read relative to command cwd", async () => {
   const cwd = makeTempDir("claude-companion-foreground-prompt-");
   fs.writeFileSync(path.join(cwd, "prompt.txt"), "from prompt file\n", "utf8");

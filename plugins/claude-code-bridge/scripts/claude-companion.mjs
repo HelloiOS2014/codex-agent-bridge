@@ -179,7 +179,7 @@ async function handleSetup(parsed) {
     console.log(`Claude: ${version}`);
   } else {
     console.log("Claude: not found");
-    console.log("Install Claude Code or set CLAUDE_COMPANION_CLAUDE_BIN to the Claude binary path.");
+    console.log("Claude binary was not found after checking common local install locations. Report this setup blocker before delegating work.");
   }
   if (status.available && !status.auth.loggedIn) {
     console.log("Run `claude auth login` before delegating work.");
