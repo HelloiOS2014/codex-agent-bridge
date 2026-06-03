@@ -27,6 +27,7 @@ This repository builds a Codex plugin that lets Codex call local Claude Code for
 - README installation docs must cover both Codex App UI fields and Codex CLI commands.
 - README installation docs must use the main branch as the install ref, not a development branch.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, and `cancel`.
+- Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
 - Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a single-plugin repository; the marketplace entry should point to this repository's plugin root with `source.local.path = "./"`.
 - Do not document personal marketplace copying or `--sparse .agents/plugins` installation for this repository.
 - Update `tests/skills.test.mjs` when changing README or skill behavior.

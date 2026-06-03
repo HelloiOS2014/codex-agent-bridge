@@ -19,7 +19,7 @@
     "shortDescription": "Delegate planning, review, and rescue work from Codex to Claude Code",
     "longDescription": "Claude Companion lets Codex invoke local Claude Code for architecture planning, code review, adversarial review, and explicitly write-enabled delegated tasks while keeping plan and review commands read-only.",
     "developerName": "JOYY",
-    "category": "Coding",
+    "category": "Developer Tools",
     "capabilities": [
       "Interactive",
       "Read",

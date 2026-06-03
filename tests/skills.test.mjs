@@ -123,7 +123,11 @@ test("local marketplace exposes the plugin package", () => {
   assert.equal(marketplace.plugins[0].source.source, "local");
   assert.equal(marketplace.plugins[0].source.path, "./");
   assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
+  assert.equal(marketplace.plugins[0].category, "Developer Tools");
   assert.equal(marketplace.plugins[0].interface.displayName, "Claude Companion");
+
+  const plugin = readJson(".codex-plugin/plugin.json");
+  assert.equal(plugin.interface.category, "Developer Tools");
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
