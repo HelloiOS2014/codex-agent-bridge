@@ -83,7 +83,11 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Direct CLI Usage/);
   assert.match(readme, /Background Jobs/);
   assert.match(readme, /State Storage/);
-  assert.match(readme, /status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries/);
+  assert.match(readme, /status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries/);
+  assert.match(readme, /status --brief --json/);
+  assert.match(readme, /omit prompt args, stdout\/stderr tails, and embedded stored result payloads/);
+  assert.match(readme, /metadata\.resultAvailable: false/);
+  assert.match(readme, /whether TERM or KILL was signalled/);
   assert.match(readme, /CLAUDE_COMPANION_MAX_STATE_BYTES/);
   assert.match(readme, /metadata\.storage\.truncated/);
   assert.match(readme, /archival caps, not execution caps/);
@@ -177,11 +181,14 @@ test("claude plugin carries a single-plugin marketplace for sparse install", () 
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
+  const readme = read("README.md");
   const plan = read("plugins/claude-code-bridge/skills/claude-plan/SKILL.md");
   const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   const rescue = read("plugins/claude-code-bridge/skills/claude-rescue/SKILL.md");
 
   assert.match(plan, /Planning is read-only/);
+  assert.match(plan, /non-interactive `dontAsk` permission mode/);
+  assert.match(readme, /non-interactive `dontAsk` permission mode with the read-only `Read,Glob,Grep` tool profile/);
   assert.doesNotMatch(plan, /--write/);
 
   assert.match(review, /Normal review and adversarial review are read-only/);
@@ -248,6 +255,7 @@ test("skill docs include setup, status, result, cancel, background, and wait com
 
   assert.match(combined, /setup --json/);
   assert.match(combined, /status "\$JOB_ID" --json/);
+  assert.match(combined, /status --all --brief --json/);
   assert.match(combined, /result "\$JOB_ID" --json/);
   assert.match(combined, /cancel "\$JOB_ID" --json/);
   assert.match(combined, /status "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
@@ -263,7 +271,10 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /Do not add `--timeout` or `--timeout-ms` by default/);
   assert.match(combined, /hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only/);
   assert.match(combined, /Do not request unbounded raw logs/);
-  assert.match(combined, /status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries/);
+  assert.match(combined, /status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries/);
+  assert.match(combined, /prompt args, stdout\/stderr tails, and embedded stored results are omitted/);
+  assert.match(combined, /metadata\.resultAvailable` is `false`/);
+  assert.match(combined, /whether TERM or KILL was used/);
 
   const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);

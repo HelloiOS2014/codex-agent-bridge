@@ -46,6 +46,44 @@ async function waitForJobStatus(jobId, expectedStatuses, options = {}) {
   throw new Error(`Timed out waiting for ${jobId}; last output: ${lastResult?.stdout || lastResult?.stderr}`);
 }
 
+async function waitForJobWhere(jobId, predicate, options = {}) {
+  let lastResult = null;
+  for (let index = 0; index < (options.attempts ?? 60); index += 1) {
+    lastResult = await runCli(["status", jobId, "--json"], options);
+    if (lastResult.status === 0) {
+      const snapshot = JSON.parse(lastResult.stdout);
+      const job = extractJob(snapshot, jobId);
+      if (job && predicate(job)) {
+        return job;
+      }
+    }
+    await sleep(options.intervalMs ?? 100);
+  }
+  throw new Error(`Timed out waiting for ${jobId}; last output: ${lastResult?.stdout || lastResult?.stderr}`);
+}
+
+function pidIsLive(pid) {
+  if (!Number.isInteger(pid) || pid <= 1) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
+async function waitForPidExit(pid, options = {}) {
+  for (let index = 0; index < (options.attempts ?? 40); index += 1) {
+    if (!pidIsLive(pid)) {
+      return true;
+    }
+    await sleep(options.intervalMs ?? 50);
+  }
+  return false;
+}
+
 function persistManualJob(workspaceRoot, job, env) {
   const stateDir = resolveStateDir(workspaceRoot, env);
   fs.mkdirSync(stateDir, { recursive: true });
@@ -326,6 +364,34 @@ test("status json includes bounded recent activity for active jobs", async () =>
   ]);
 });
 
+test("result on a running job reports unavailable result without failing", async () => {
+  const stateDir = makeTempDir("background-running-result-state-");
+  const launch = await runCli(["plan", "--background", "--json", "running", "result"], {
+    stateDir,
+    env: { FAKE_CLAUDE_SLEEP_MS: "120000" }
+  });
+  assert.equal(launch.status, 0);
+  const jobId = JSON.parse(launch.stdout).job.id;
+  await waitForJobWhere(
+    jobId,
+    (job) => job.status === "running" && Number.isInteger(job.claudePid),
+    { stateDir }
+  );
+
+  const result = await runCli(["result", jobId, "--json"], { stateDir });
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.kind, "plan");
+  assert.equal(payload.status, "running");
+  assert.equal(payload.metadata.resultAvailable, false);
+  assert.match(payload.summary, /still running/i);
+  assert.doesNotMatch(payload.rendered, /Status: failed/);
+
+  const cancel = await runCli(["cancel", jobId, "--json"], { stateDir });
+  assert.equal(cancel.status, 0);
+});
+
 test("runStoredJob returns terminal jobs without re-executing them", async () => {
   const stateDir = makeTempDir("background-terminal-state-");
   const workspaceRoot = makeTempDir("background-terminal-workspace-");
@@ -558,6 +624,52 @@ test("status supports explicit, all, and json modes", async () => {
   assert.ok(extractJob(snapshot, jobId));
 });
 
+test("status --brief omits embedded stored result payloads", async () => {
+  const stateDir = makeTempDir("background-status-brief-state-");
+  const workspaceRoot = makeTempDir("background-status-brief-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const result = {
+    kind: "plan",
+    status: "completed",
+    summary: "large result",
+    rawOutput: "brief-test-large-output",
+    rendered: "brief-test-large-rendered",
+    metadata: { jobId: "placeholder" }
+  };
+  const job = completeJobRecord(createJobRecord({
+    kind: "plan",
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: "plan",
+    args: ["--prompt", "brief-test-large-prompt"],
+    env
+  }), result);
+  job.stdoutTail = "brief-test-large-stdout-tail";
+  job.stderrTail = "brief-test-large-stderr-tail";
+  persistManualJob(workspaceRoot, job, env);
+  writeJobResultFile(workspaceRoot, job.id, { ...result, metadata: { jobId: job.id } }, env);
+
+  const full = await runCli(["status", "--all", "--json"], { cwd: workspaceRoot, stateDir });
+  assert.equal(full.status, 0);
+  assert.match(full.stdout, /brief-test-large-output/);
+
+  const brief = await runCli(["status", "--all", "--brief", "--json"], { cwd: workspaceRoot, stateDir });
+
+  assert.equal(brief.status, 0);
+  assert.doesNotMatch(brief.stdout, /brief-test-large-output/);
+  assert.doesNotMatch(brief.stdout, /brief-test-large-rendered/);
+  assert.doesNotMatch(brief.stdout, /brief-test-large-prompt/);
+  assert.doesNotMatch(brief.stdout, /brief-test-large-stdout-tail/);
+  assert.doesNotMatch(brief.stdout, /brief-test-large-stderr-tail/);
+  const payload = JSON.parse(brief.stdout);
+  const briefJob = extractJob(payload, job.id);
+  assert.ok(briefJob);
+  assert.equal(Object.hasOwn(briefJob, "result"), false);
+  assert.equal(Object.hasOwn(briefJob, "args"), false);
+  assert.equal(Object.hasOwn(briefJob, "stdoutTail"), false);
+  assert.equal(Object.hasOwn(briefJob, "stderrTail"), false);
+});
+
 test("background jobs launched with --cwd can be managed with status result and cancel --cwd", async () => {
   const stateDir = makeTempDir("background-cwd-state-");
   const workspaceRoot = makeTempDir("background-cwd-workspace-");
@@ -659,12 +771,24 @@ test("cancel reports missing jobs, rejects invalid ids, and cancels running jobs
   });
   assert.equal(launch.status, 0);
   const jobId = JSON.parse(launch.stdout).job.id;
+  const active = await waitForJobWhere(
+    jobId,
+    (job) => job.status === "running" && Number.isInteger(job.claudePid) && Array.isArray(job.claudeArgv),
+    { stateDir }
+  );
+  assert.ok(active.claudeArgv.includes("--tools"));
 
   const cancel = await runCli(["cancel", jobId, "--json"], { stateDir });
   assert.equal(cancel.status, 0);
   const cancelled = JSON.parse(cancel.stdout);
   assert.equal(cancelled.job.status, "cancelled");
   assert.equal(cancelled.job.pid, null);
+  assert.equal(cancelled.signalled, true);
+  assert.equal(cancelled.processExited, true);
+  assert.equal(cancelled.workerPid, active.pid);
+  assert.equal(cancelled.claudePid, active.claudePid);
+  assert.equal(await waitForPidExit(active.pid), true);
+  assert.equal(await waitForPidExit(active.claudePid), true);
 
   const result = await runCli(["result", jobId, "--json"], { stateDir });
   assert.equal(result.status, 0);

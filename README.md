@@ -185,6 +185,7 @@ Common options:
 - `--background`: start a stored job and return immediately.
 - `--wait`: store the job, wait for completion, and return the result.
 - `--timeout-ms <n>` or `--timeout <n>`: optional hard stop for deliberate time-boxed runs. Agents should not add this by default.
+- `status --brief --json`: omit prompt args, stdout/stderr tails, and embedded stored result payloads from status output for polling or large histories.
 - `storage --json`: report bridge state usage without deleting files.
 - `cleanup --dry-run --json`: preview cleanup before deleting old stored job artifacts.
 - `cleanup --json`: prune old terminal job artifacts while preserving active jobs.
@@ -216,11 +217,14 @@ Manage jobs:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status --all --brief --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
-`status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries so callers can tell whether a long-running job has started, is still active, and when it last recorded bridge activity.
+`status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries, and bounded `stdoutTail` / `stderrTail` fields so callers can tell whether a long-running job has started, spawned Claude, produced output, and where it last recorded activity. Use `status --brief --json` when polling or reading broad history so prompt args, stdout/stderr tails, and embedded stored results are omitted.
+
+`result "$JOB_ID" --json` on a queued or running job returns the job status with `metadata.resultAvailable: false` instead of reporting a failed result. `cancel "$JOB_ID" --json` reports whether TERM or KILL was signalled and whether the known worker / Claude process ids exited.
 
 For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`:
 
@@ -279,6 +283,7 @@ Cleanup never removes `queued` or `running` jobs. Explicit `result <job-id>` rea
 ## Safety Model
 
 - `plan`, `review`, and `adversarial-review` are read-only companion commands.
+- `plan` uses Claude Code's non-interactive `dontAsk` permission mode with the read-only `Read,Glob,Grep` tool profile.
 - `rescue` is read-only unless `--write` is present.
 - `rescue --write` is only for explicit user requests to edit or implement.
 - Dangerous Claude Code bypass flags are rejected by the current adapter.

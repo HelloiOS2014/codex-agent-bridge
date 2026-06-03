@@ -259,7 +259,10 @@ export async function runClaudePrint(options = {}) {
     cwd: options.cwd,
     env: options.env,
     stdin: promptMode === "stdin" ? prompt : undefined,
-    timeoutMs: options.timeoutMs
+    timeoutMs: options.timeoutMs,
+    onStart: options.onStart,
+    onStdout: options.onStdout,
+    onStderr: options.onStderr
   });
   const parsed = parseClaudeJson(result.stdout);
   const output = parsed?.result ?? result.stdout;

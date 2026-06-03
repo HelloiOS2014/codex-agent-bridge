@@ -55,9 +55,10 @@ Specific job status:
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --cwd "$WORKSPACE" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status --all --brief --json
 ```
 
-`status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries. Use these fields to report whether a long-running job has started, whether a safe process id is still known, how long it has been active, and when the bridge last recorded activity.
+`status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries, and bounded `stdoutTail` / `stderrTail` fields. Use these fields to report whether a long-running job has started, whether safe process ids are still known, whether Claude has produced output, how long it has been active, and when the bridge last recorded activity. Use `status --brief --json` when polling or reading broad history so prompt args, stdout/stderr tails, and embedded stored results are omitted.
 
 Latest finished result:
 
@@ -101,6 +102,6 @@ Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has bee
 
 For `setup --json`, treat `ready: true` as usable. If setup reports a missing Claude binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/claude`, `$HOME/.claude/local/claude`, `/opt/homebrew/bin/claude`, and `/usr/local/bin/claude`; when one exists, rerun the companion with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_BIN"` for that call. If no binary is found, authentication is missing, or the state directory is unusable, report that blocker and do not start delegated work.
 
-For `status --json`, report running jobs, the latest finished job, and the relevant job id. For `result --json`, preserve paths, line numbers, findings, changed-file summaries, verification, errors, and residual risk. For `cancel --json`, report whether cancellation was signalled and whether the job is now cancelled.
+For `status --json`, report running jobs, the latest finished job, and the relevant job id. For `result --json`, preserve paths, line numbers, findings, changed-file summaries, verification, errors, and residual risk; if the selected job is queued or running and `metadata.resultAvailable` is `false`, say the result is not ready instead of calling it failed. For `cancel --json`, report whether cancellation was signalled, whether TERM or KILL was used, whether the known process ids exited, and whether the job is now cancelled.
 
 For `storage --json`, report total state usage and whether cleanup may be needed. For `cleanup --dry-run --json`, report what would be removed before running any destructive cleanup. If `result --json` includes `metadata.storage.truncated` or `metadata.storage.fallback`, tell the user the archived result was shortened to protect disk usage.

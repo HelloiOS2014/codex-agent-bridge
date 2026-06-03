@@ -11,6 +11,7 @@ import {
 
 const FOREGROUND_COMMANDS = new Set(["plan", "review", "adversarial-review", "rescue"]);
 const VALID_SCOPES = new Set(["auto", "working-tree", "branch"]);
+const JOB_TAIL_BYTES = 4096;
 
 function hasDeferredMode(parsed) {
   return parsed.options.background || parsed.options.wait;
@@ -44,6 +45,61 @@ function timeoutMs(options) {
   return positiveIntegerOption(options, ["timeout-ms", "timeout"], "Timeout");
 }
 
+function utf8Tail(value, maxBytes = JOB_TAIL_BYTES) {
+  const text = String(value ?? "");
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) {
+    return text;
+  }
+  const chars = Array.from(text);
+  let low = 0;
+  let high = chars.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(chars.slice(chars.length - mid).join(""), "utf8") <= maxBytes) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return chars.slice(chars.length - low).join("");
+}
+
+function claudeJobHooks(runtime = {}) {
+  if (typeof runtime.updateJob !== "function") {
+    return {};
+  }
+  let stdoutTail = "";
+  let stderrTail = "";
+  let firstOutputAt = null;
+  const recordOutput = (field, chunk) => {
+    const now = new Date().toISOString();
+    firstOutputAt ??= now;
+    if (field === "stdoutTail") {
+      stdoutTail = utf8Tail(`${stdoutTail}${chunk}`);
+    } else {
+      stderrTail = utf8Tail(`${stderrTail}${chunk}`);
+    }
+    runtime.updateJob({
+      [field]: field === "stdoutTail" ? stdoutTail : stderrTail,
+      firstOutputAt,
+      lastOutputAt: now,
+      phase: "claude_output"
+    }, `claude ${field === "stdoutTail" ? "stdout" : "stderr"} output`);
+  };
+  return {
+    onStart: ({ pid, command, args }) => {
+      runtime.updateJob({
+        claudePid: pid,
+        claudeCommand: command,
+        claudeArgv: [...args],
+        phase: "claude_spawned"
+      }, `claude spawned pid ${pid}`);
+    },
+    onStdout: (chunk) => recordOutput("stdoutTail", chunk),
+    onStderr: (chunk) => recordOutput("stderrTail", chunk)
+  };
+}
+
 function reviewContextOptions(options) {
   if (options.scope && !VALID_SCOPES.has(options.scope)) {
     throw new Error(`Unsupported review scope: ${options.scope}`);
@@ -72,6 +128,7 @@ function claudeRuntimeOptions(parsed, cwd, runtime, prompt, toolProfile, extra =
     model: parsed.options.model,
     effort: parsed.options.effort,
     timeoutMs: timeoutMs(parsed.options),
+    ...claudeJobHooks(runtime),
     ...extra
   };
 }
@@ -186,7 +243,7 @@ export async function runPlanForeground(parsed, runtime = {}) {
     runtime,
     composePlanPrompt(userPrompt),
     "read",
-    { permissionMode: "plan" }
+    { permissionMode: "dontAsk" }
   ));
   return normalizeResult("plan", result);
 }

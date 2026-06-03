@@ -29,6 +29,9 @@ import {
 const WORKER_OMITTED_OPTIONS = new Set(["background", "wait", "json", "cwd"]);
 const DEFAULT_QUEUED_STALE_MS = 30_000;
 const DEFAULT_RECENT_LOG_LINES = 3;
+const CANCEL_TERM_WAIT_MS = 1000;
+const CANCEL_KILL_WAIT_MS = 1000;
+const CANCEL_POLL_MS = 50;
 
 function jobWorkspace(parsed, runtime = {}) {
   const baseCwd = runtime.cwd ?? process.cwd();
@@ -175,6 +178,22 @@ function cancelledResult(job, message) {
   }, { kind: job.kind });
 }
 
+function unavailableResult(job) {
+  const summary = `Job ${job.id} is still ${job.status}; result is not available yet.`;
+  return normalizeCompanionResult({
+    kind: job.kind,
+    status: job.status,
+    summary,
+    rawOutput: "",
+    text: "",
+    error: null,
+    metadata: {
+      jobId: job.id,
+      resultAvailable: false
+    }
+  }, { kind: job.kind });
+}
+
 function staleActiveJobMessage(job) {
   const pid = job.pid === null || job.pid === undefined ? "none" : String(job.pid);
   return `Job ${job.id} marked failed because active status ${job.status} has no safe live process id (pid ${pid}).`;
@@ -221,6 +240,30 @@ function reconcileActiveJob(job, workspaceRoot, env, options = {}) {
 
 function reconcileActiveJobs(workspaceRoot, jobs, env, options = {}) {
   return jobs.map((job) => reconcileActiveJob(job, workspaceRoot, env, options));
+}
+
+function stripJobResult(job) {
+  if (!job) {
+    return job;
+  }
+  const {
+    args,
+    result,
+    stdoutTail,
+    stderrTail,
+    ...rest
+  } = job;
+  return rest;
+}
+
+function stripSnapshotResults(snapshot) {
+  return {
+    ...snapshot,
+    running: Array.isArray(snapshot.running) ? snapshot.running.map(stripJobResult) : snapshot.running,
+    latestFinished: stripJobResult(snapshot.latestFinished),
+    recent: Array.isArray(snapshot.recent) ? snapshot.recent.map(stripJobResult) : snapshot.recent,
+    job: stripJobResult(snapshot.job)
+  };
 }
 
 function ensureDirectory(directory, label) {
@@ -398,20 +441,22 @@ export function statusSnapshot(workspaceRoot, options = {}) {
   const jobs = annotateJobsForStatus(reconciledJobs, workspaceRoot, env, options);
   if (options.jobId) {
     const job = findJob(jobs, options.jobId);
-    return {
+    const snapshot = {
       running: isActiveJob(job) ? [job] : [],
       latestFinished: isActiveJob(job) ? null : job,
       recent: [],
       job
     };
+    return options.brief ? stripSnapshotResults(snapshot) : snapshot;
   }
 
   const snapshot = summarizeStatus(jobs);
   if (options.all) {
     const allRecent = sortedJobs(jobs).filter((job) => job.id !== snapshot.latestFinished?.id);
-    return { ...snapshot, recent: allRecent, all: true };
+    const allSnapshot = { ...snapshot, recent: allRecent, all: true };
+    return options.brief ? stripSnapshotResults(allSnapshot) : allSnapshot;
   }
-  return snapshot;
+  return options.brief ? stripSnapshotResults(snapshot) : snapshot;
 }
 
 export function readSelectedResult(workspaceRoot, options = {}) {
@@ -435,10 +480,31 @@ export function readSelectedResult(workspaceRoot, options = {}) {
   }
 
   if (!result) {
+    if (isActiveJob(job)) {
+      return { job, result: unavailableResult(job) };
+    }
     throw new Error(`No result available for "${job.id}" while job status is ${job.status}.`);
   }
 
   return { job, result };
+}
+
+function updateRunningJob(root, env, jobId, updates, logMessage) {
+  let current;
+  try {
+    current = readJobFile(root, jobId, env);
+  } catch {
+    return null;
+  }
+  if (!isActiveJob(current)) {
+    return current;
+  }
+  const next = { ...current, ...updates };
+  upsertJob(root, next, env);
+  if (logMessage) {
+    appendJobLog(root, next.id, logMessage, env);
+  }
+  return next;
 }
 
 export async function runStoredJob(jobId, options = {}) {
@@ -463,7 +529,9 @@ export async function runStoredJob(jobId, options = {}) {
 
   let result;
   try {
-    result = await execute(job);
+    result = await execute(job, {
+      updateJob: (updates, logMessage) => updateRunningJob(root, env, job.id, updates, logMessage)
+    });
   } catch (error) {
     result = failedResult(job, error);
   }
@@ -502,7 +570,44 @@ export async function runStoredJob(jobId, options = {}) {
   return completed;
 }
 
-export function cancelJob(workspaceRoot, jobId, options = {}) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function uniqueCancelTargets(job) {
+  const targets = [];
+  const seen = new Set();
+  for (const [role, value] of [["worker", job.pid], ["claude", job.claudePid]]) {
+    const pid = Number(value);
+    if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid || seen.has(pid)) {
+      continue;
+    }
+    seen.add(pid);
+    targets.push({ role, pid });
+  }
+  return targets;
+}
+
+function signalCancelTargets(targets, signal) {
+  return targets.map((target) => ({
+    ...target,
+    signal,
+    signalled: terminateProcessTree(target.pid, signal, { allowPidFallback: true })
+  }));
+}
+
+async function waitForTargetsToExit(targets, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (targets.every((target) => !processPidIsLive(target.pid))) {
+      return true;
+    }
+    await sleep(CANCEL_POLL_MS);
+  }
+  return targets.every((target) => !processPidIsLive(target.pid));
+}
+
+export async function cancelJob(workspaceRoot, jobId, options = {}) {
   const env = options.env ?? process.env;
   const job = findJob(listJobs(workspaceRoot, env), jobId);
   const root = jobRoot(job, workspaceRoot);
@@ -516,24 +621,54 @@ export function cancelJob(workspaceRoot, jobId, options = {}) {
     };
   }
 
-  const pid = Number(job.pid);
-  const safePid = Number.isInteger(pid) && pid > 1;
-  const signalled = safePid ? terminateProcessTree(pid, "SIGTERM") : false;
+  const targets = uniqueCancelTargets(job);
+  const termTargets = signalCancelTargets(targets, "SIGTERM");
+  let processExited = termTargets.some((target) => target.signalled)
+    ? await waitForTargetsToExit(targets, options.termWaitMs ?? CANCEL_TERM_WAIT_MS)
+    : false;
+  let killTargets = [];
+  if (!processExited && termTargets.some((target) => target.signalled)) {
+    const liveTargets = targets.filter((target) => processPidIsLive(target.pid));
+    killTargets = signalCancelTargets(liveTargets, "SIGKILL");
+    processExited = await waitForTargetsToExit(targets, options.killWaitMs ?? CANCEL_KILL_WAIT_MS);
+  }
+
+  const signalled = termTargets.some((target) => target.signalled);
+  const killSignalled = killTargets.some((target) => target.signalled);
   const message = signalled
-    ? "Cancellation requested."
+    ? (processExited ? "Cancellation requested and process exited." : "Cancellation requested; process may still be exiting.")
     : "Job marked cancelled; no safe running process id was signalled.";
-  const result = cancelledResult(job, message);
+  const baseResult = cancelledResult(job, message);
+  const result = {
+    ...baseResult,
+    metadata: {
+      ...baseResult.metadata,
+      jobId: job.id,
+      cancellation: {
+        termTargets,
+        killTargets,
+        processExited
+      }
+    }
+  };
 
   writeJobResultFile(root, job.id, result, env);
   const cancelled = completeJobRecord(job, result);
   upsertJob(root, cancelled, env);
-  appendJobLog(root, cancelled.id, `${message} previous pid ${job.pid ?? "none"}`, env);
+  appendJobLog(root, cancelled.id, `${message} worker pid ${job.pid ?? "none"} claude pid ${job.claudePid ?? "none"}`, env);
   runStorageMaintenance(root, env, { protectedJobIds: [cancelled.id] });
 
   return {
     status: "cancelled",
     message,
     signalled,
+    termSignalled: signalled,
+    killSignalled,
+    processExited,
+    workerPid: Number.isInteger(Number(job.pid)) ? Number(job.pid) : null,
+    claudePid: Number.isInteger(Number(job.claudePid)) ? Number(job.claudePid) : null,
+    signalTargets: termTargets,
+    killTargets,
     job: cancelled
   };
 }

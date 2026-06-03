@@ -76,7 +76,7 @@ const COMMAND_CONFIG = {
     valueOptions: ["cwd", "prompt", "model", "effort", "prompt-file", "timeout", "timeout-ms"],
     exclusiveGroups: [["background", "wait"], ["resume", "fresh"]]
   },
-  status: { booleanOptions: ["all", "json"], valueOptions: ["cwd"] },
+  status: { booleanOptions: ["all", "brief", "json"], valueOptions: ["cwd"] },
   result: { booleanOptions: ["json"], valueOptions: ["cwd"] },
   cancel: { booleanOptions: ["json"], valueOptions: ["cwd"] },
   storage: { booleanOptions: ["all", "json"], valueOptions: ["cwd"] },
@@ -92,7 +92,7 @@ function usage() {
     "  claude-companion review [--background|--wait] [--model <model>] [--base <ref>] [--scope auto|working-tree|branch]",
     "  claude-companion adversarial-review [--background|--wait] [--model <model>] [focus...]",
     "  claude-companion rescue [--background|--wait] [--resume|--fresh] [--write] [--model <model>] [prompt...]",
-    "  claude-companion status [job-id] [--cwd <workspace>] [--all] [--json]",
+    "  claude-companion status [job-id] [--cwd <workspace>] [--all] [--brief] [--json]",
     "  claude-companion result [job-id] [--cwd <workspace>] [--json]",
     "  claude-companion cancel [job-id] [--cwd <workspace>] [--json]",
     "  claude-companion storage [--cwd <workspace>] [--all] [--json]",
@@ -186,7 +186,7 @@ async function handleSetup(parsed) {
   }
 }
 
-async function executeStoredJob(job) {
+async function executeStoredJob(job, runtime = {}) {
   const config = COMMAND_CONFIG[job.command];
   if (!config || !foregroundCommand(job.command)) {
     throw new Error(`Unsupported stored job command: ${job.command}`);
@@ -194,7 +194,8 @@ async function executeStoredJob(job) {
   const parsed = parseArgs([job.command, ...(job.args ?? [])], config);
   return runForegroundCommand(parsed, {
     cwd: job.cwd,
-    env: process.env
+    env: process.env,
+    updateJob: runtime.updateJob
   });
 }
 
@@ -249,6 +250,7 @@ function handleStatus(parsed) {
   const snapshot = statusSnapshot(commandWorkspace(parsed), {
     jobId,
     all: Boolean(parsed.options.all),
+    brief: Boolean(parsed.options.brief),
     env: process.env
   });
   const rendered = renderStatus(snapshot, { json: Boolean(parsed.options.json) });
@@ -265,12 +267,12 @@ function handleResult(parsed) {
   printRendered(rendered, { json: Boolean(parsed.options.json) });
 }
 
-function handleCancel(parsed) {
+async function handleCancel(parsed) {
   const jobId = assertAtMostOnePositional(parsed, "cancel");
   if (!jobId) {
     throw new Error("cancel requires a job id.");
   }
-  const payload = cancelJob(commandWorkspace(parsed), jobId, { env: process.env });
+  const payload = await cancelJob(commandWorkspace(parsed), jobId, { env: process.env });
   if (parsed.options.json) {
     printRendered(payload, { json: true });
     return;
@@ -433,7 +435,7 @@ async function main(argv) {
     return;
   }
   if (parsed.command === "cancel") {
-    handleCancel(parsed);
+    await handleCancel(parsed);
     return;
   }
   if (parsed.command === "storage") {

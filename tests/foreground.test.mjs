@@ -27,7 +27,7 @@ console.log(JSON.stringify({
   return file;
 }
 
-test("plan prompt asks for a full read-only plan and uses read profile", async () => {
+test("plan prompt asks for a full read-only plan and uses non-interactive read profile", async () => {
   const claudeBin = writeCapturingClaudeFixture();
 
   const result = await runForegroundCommand({
@@ -45,9 +45,10 @@ test("plan prompt asks for a full read-only plan and uses read profile", async (
   assert.match(result.rendered, /full implementation or review plan/i);
   assert.match(result.rendered, /Do not edit files/i);
   assert.match(result.rendered, /design this/);
-  assert.match(result.rendered, /"--permission-mode","plan"/);
+  assert.match(result.rendered, /"--permission-mode","dontAsk"/);
   assert.match(result.rendered, /"--model","sonnet"/);
   assert.match(result.rendered, /"--tools","Read,Glob,Grep"/);
+  assert.doesNotMatch(result.rendered, /"--permission-mode","plan"/);
   assert.doesNotMatch(result.rendered, /Bash|Edit,MultiEdit,Write/);
 });
 

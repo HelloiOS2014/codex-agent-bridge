@@ -23,6 +23,7 @@ Use this skill to delegate planning to Claude Code through the Claude Code Bridg
 ## Safety Defaults
 
 - Planning is read-only.
+- The companion plan command uses Claude Code's non-interactive `dontAsk` permission mode with the read-only `Read,Glob,Grep` tool profile.
 - Do not ask Claude to edit files, create commits, or run write commands.
 - Do not automatically apply Claude output, stage files, create commits, or push changes from planning flows.
 - If the user explicitly requests a Claude Code model, pass it with `--model <model>`. The model value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.

@@ -11,6 +11,9 @@ export function runCommand(command, args = [], options = {}) {
       stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       detached: false
     });
+    if (Number.isInteger(child.pid)) {
+      options.onStart?.({ pid: child.pid, command, args: [...args] });
+    }
 
     let stdout = "";
     let stderr = "";
@@ -37,10 +40,14 @@ export function runCommand(command, args = [], options = {}) {
       child.stdin?.end(options.stdin);
     }
     child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stdout += text;
+      options.onStdout?.(text);
     });
     child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stderr += text;
+      options.onStderr?.(text);
     });
     child.on("error", (error) => {
       finish({ status: null, signal: timedOut ? (options.killSignal ?? "SIGTERM") : null, stdout, stderr, error });
