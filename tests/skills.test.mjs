@@ -127,11 +127,12 @@ test("local marketplace exposes the plugin package", () => {
   assert.equal(marketplace.plugins[0].source.path, "./plugins/claude-companion");
   assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
   assert.equal(marketplace.plugins[0].category, "Developer Tools");
-  assert.equal(marketplace.plugins[0].interface.displayName, "Claude Companion");
+  assert.equal(Object.hasOwn(marketplace.plugins[0], "interface"), false);
 
   const pluginManifestPath = path.join(marketplace.plugins[0].source.path, ".codex-plugin/plugin.json");
   const plugin = readJson(pluginManifestPath);
   assert.equal(path.resolve(root, marketplace.plugins[0].source.path), pluginRoot);
+  assert.equal(plugin.interface.displayName, "Claude Companion");
   assert.equal(plugin.interface.category, "Developer Tools");
 });
 
