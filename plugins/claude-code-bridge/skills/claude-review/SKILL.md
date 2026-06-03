@@ -1,11 +1,11 @@
 ---
 name: claude-review
-description: Use when the user wants Claude Code, through Agent Bridge, to review code, review risks, or adversarially challenge an implementation or design from inside Codex.
+description: Use when the user wants Claude Code, through Claude Code Bridge, to review code, review risks, or adversarially challenge an implementation or design from inside Codex.
 ---
 
 # Claude Review
 
-Use this skill to delegate read-only review to Claude Code through the Agent Bridge Claude adapter CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+Use this skill to delegate read-only review to Claude Code through the Claude Code Bridge CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
 
 ## When To Use
 

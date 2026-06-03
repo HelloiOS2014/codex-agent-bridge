@@ -1,22 +1,22 @@
 ---
 name: claude-result-handling
-description: Use when the user wants Agent Bridge setup, status, result, cancellation, or stored delegated job output from inside Codex.
+description: Use when the user wants Claude Code Bridge setup, status, result, cancellation, or stored delegated job output from inside Codex.
 ---
 
 # Claude Result Handling
 
-Use this skill to check setup and manage Agent Bridge background or waited jobs. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+Use this skill to check setup and manage Claude Code Bridge background or waited jobs. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
 
 ## When To Use
 
-- Use for Agent Bridge setup checks.
+- Use for Claude Code Bridge setup checks.
 - Use when the user asks for delegated job status, progress, latest result, a specific result, or cancellation.
 - Use after any `--background --json` companion command returns a job id.
 - Use after `--wait --json` when the user wants the stored job record or another copy of the result.
 
 ## When Not To Use
 
-- Do not use for trivial local status questions unrelated to Agent Bridge jobs.
+- Do not use for trivial local status questions unrelated to Claude Code Bridge jobs.
 - Do not use when the user asked not to delegate or not to use Claude.
 - Do not use to send secrets, credentials, private keys, tokens, or sensitive prompts.
 - Do not call internal worker commands such as `run-job`; those are not user-facing skill commands.

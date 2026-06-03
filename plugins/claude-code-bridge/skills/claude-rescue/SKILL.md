@@ -1,11 +1,11 @@
 ---
 name: claude-rescue
-description: Use when the user explicitly wants Claude Code, through Agent Bridge, to investigate, fix, implement, apply a plan, or continue delegated work from inside Codex.
+description: Use when the user explicitly wants Claude Code, through Claude Code Bridge, to investigate, fix, implement, apply a plan, or continue delegated work from inside Codex.
 ---
 
 # Claude Rescue
 
-Use this skill to delegate investigation or implementation rescue work to Claude Code through the Agent Bridge Claude adapter CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+Use this skill to delegate investigation or implementation rescue work to Claude Code through the Claude Code Bridge CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
 
 ## When To Use
 

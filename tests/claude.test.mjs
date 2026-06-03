@@ -9,7 +9,7 @@ import {
   getClaudeStatus,
   resolveClaudeBin,
   runClaudePrint
-} from "../plugins/agent-bridge/scripts/lib/claude.mjs";
+} from "../plugins/claude-code-bridge/scripts/lib/claude.mjs";
 
 function writeFixture(name, source) {
   const dir = makeTempDir("claude-companion-claude-fixture-");

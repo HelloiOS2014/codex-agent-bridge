@@ -3,15 +3,15 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { completeJobRecord, createJobRecord, startJobRecord } from "../plugins/agent-bridge/scripts/lib/jobs.mjs";
-import { runStoredJob, spawnBackgroundJob } from "../plugins/agent-bridge/scripts/lib/background.mjs";
+import { completeJobRecord, createJobRecord, startJobRecord } from "../plugins/claude-code-bridge/scripts/lib/jobs.mjs";
+import { runStoredJob, spawnBackgroundJob } from "../plugins/claude-code-bridge/scripts/lib/background.mjs";
 import {
   readJobFile,
   readJobResultFile,
   resolveStateDir,
   writeJobFile,
   writeJobResultFile
-} from "../plugins/agent-bridge/scripts/lib/state.mjs";
+} from "../plugins/claude-code-bridge/scripts/lib/state.mjs";
 import { cliPath, makeTempDir, repoRoot, runCli } from "./helpers.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -13,7 +13,7 @@ import {
   writeJobFile,
   readJobFile,
   appendJobLog
-} from "../plugins/agent-bridge/scripts/lib/state.mjs";
+} from "../plugins/claude-code-bridge/scripts/lib/state.mjs";
 
 test("resolveStateRoot respects environment priority", () => {
   const companionRoot = makeTempDir("companion-state-");

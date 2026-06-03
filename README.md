@@ -1,8 +1,8 @@
 # Codex Agent Bridge
 
-Agent Bridge is a Codex plugin for delegating planning, code review, adversarial review, and explicitly write-enabled rescue work to local agent CLIs.
+Agent Bridge is a Codex marketplace for agent-specific bridge plugins. Each plugin delegates planning, code review, adversarial review, or explicitly write-enabled rescue work to one local agent CLI.
 
-The plugin is skill-driven and CLI-only. It does not use MCP. The current bundled adapter uses Claude Code; the repository and marketplace names are intentionally generic so additional local agents can be added later.
+The shipped plugin is **Claude Code Bridge**. It is skill-driven and CLI-only, and it does not use MCP. Future agents should be added as separate plugins in the marketplace instead of being hidden behind keyword routing inside one generic plugin.
 
 ## Requirements
 
@@ -26,7 +26,10 @@ claude auth login
 
 ## Installation
 
-This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json`; the installable plugin package lives at `plugins/agent-bridge/`.
+This repository supports two installation shapes:
+
+- **Full marketplace**: add the root repository, then choose one or more plugins from the Agent Bridge source.
+- **Single plugin**: add only `plugins/claude-code-bridge` with sparse checkout. That plugin directory carries its own marketplace file pointing at `./`.
 
 ### Codex App
 
@@ -34,13 +37,21 @@ In the Codex app:
 
 1. Open **Plugins** from the sidebar.
 2. Click **Create** and choose **Add plugin marketplace**.
-3. Fill the dialog:
+3. Fill the dialog for the full Agent Bridge marketplace:
    - Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
    - Git ref: `main`
-   - Sparse path: leave empty. Do not enter `plugins/agent-bridge`, `plugins/codex`, or `.agents/plugins`.
+   - Sparse path: leave empty for the full Agent Bridge marketplace.
 4. Click **Add marketplace**.
-5. Choose the **Agent Bridge** source, open **Agent Bridge**, and select **Add to Codex**.
+5. Choose the **Agent Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
 6. Restart Codex or start a new thread so the bundled skills are loaded.
+
+To install only the Claude plugin from the Codex app, use the same dialog with:
+
+- Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
+- Git ref: `main`
+- Sparse path: `plugins/claude-code-bridge`
+
+Then choose the **Claude Code Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
 
 ### Codex CLI
 
@@ -48,7 +59,15 @@ In the Codex app:
 codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main
 ```
 
-Then open Codex **Plugins**, choose the **Agent Bridge** source, open **Agent Bridge**, and select **Add to Codex**.
+Then open Codex **Plugins**, choose the **Agent Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
+
+For single-plugin installation:
+
+```bash
+codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main --sparse plugins/claude-code-bridge
+```
+
+Then open Codex **Plugins**, choose the **Claude Code Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
 
 If you previously added an older marketplace from an earlier README, remove the old entry and add the main-branch marketplace again:
 
@@ -65,14 +84,14 @@ Refresh the marketplace snapshot:
 codex plugin marketplace upgrade codex-agent-bridge
 ```
 
-Do not use `--sparse .agents/plugins` for this repository. Codex needs both `.agents/plugins/marketplace.json` and `plugins/agent-bridge/`, so leave sparse path empty.
+Do not use `--sparse .agents/plugins` for this repository. Use an empty sparse path for the full Agent Bridge marketplace, or `--sparse plugins/claude-code-bridge` for the single Claude Code Bridge plugin.
 
 ### Verify Installation
 
 Start a new Codex thread and run one of these prompts:
 
 ```text
-Check Agent Bridge setup.
+Check Claude Code Bridge setup.
 Ask Claude to plan a small README cleanup.
 Ask Claude to review my current changes.
 ```
@@ -87,7 +106,7 @@ Expected result: `ready: true`, which means Claude Code is available and authent
 
 ## How Codex Uses It
 
-After the plugin is installed and enabled, Codex loads the skills in [`plugins/agent-bridge/skills/`](plugins/agent-bridge/skills/). The current skills route natural-language requests to the Claude Code adapter.
+After Claude Code Bridge is installed and enabled, Codex loads the skills in [`plugins/claude-code-bridge/skills/`](plugins/claude-code-bridge/skills/). These skills route natural-language requests to the local Claude Code CLI.
 
 Use these request patterns in Codex:
 
@@ -178,7 +197,7 @@ Job state is stored outside the reviewed project. State root priority:
 
 Each workspace gets a hashed state directory. Job ids are safe filename identifiers and are validated before reading or writing job files.
 
-These state variable names belong to the current Claude Code adapter and may be generalized when additional adapters are added.
+These state variable names belong to Claude Code Bridge. Additional agents should have their own plugin-specific state names.
 
 ## Safety Model
 
@@ -209,7 +228,7 @@ npm run check:manifest
 Local smoke tests can use the deterministic fake Claude fixture:
 
 ```bash
-export CLAUDE_PLUGIN_ROOT="$PWD/plugins/agent-bridge"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-code-bridge"
 export CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan the plugin"
@@ -226,19 +245,20 @@ printf "initial\n" > "$tmpdir/README.md"
 git -C "$tmpdir" add README.md
 git -C "$tmpdir" commit -q -m initial
 printf "changed\n" > "$tmpdir/changed.txt"
-export CLAUDE_PLUGIN_ROOT="$PWD/plugins/agent-bridge"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-code-bridge"
 CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
   node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --cwd "$tmpdir" --scope working-tree
 ```
 
 ## Repository Layout
 
-- `.agents/plugins/marketplace.json`: local marketplace entry for installing this repository as a Codex plugin source.
-- `plugins/agent-bridge/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
-- `plugins/agent-bridge/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
-- `plugins/agent-bridge/scripts/claude-companion.mjs`: current Claude Code adapter CLI entrypoint.
-- `plugins/agent-bridge/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
-- `plugins/agent-bridge/schemas/review-output.schema.json`: normalized result schema.
+- `.agents/plugins/marketplace.json`: root marketplace entry for installing all Agent Bridge plugins from this repository.
+- `plugins/claude-code-bridge/.agents/plugins/marketplace.json`: plugin-local marketplace for sparse single-plugin installation.
+- `plugins/claude-code-bridge/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
+- `plugins/claude-code-bridge/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
+- `plugins/claude-code-bridge/scripts/claude-companion.mjs`: current Claude Code adapter CLI entrypoint.
+- `plugins/claude-code-bridge/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
+- `plugins/claude-code-bridge/schemas/review-output.schema.json`: normalized result schema.
 - `tests/`: fake Claude fixture and automated tests.
 - `AGENTS.md`: maintenance rules for future agents.
 

@@ -1,11 +1,11 @@
 ---
 name: claude-plan
-description: Use when the user wants Claude Code, through Agent Bridge, to produce architecture plans, specs, sequencing, risk analysis, or implementation strategy for Codex.
+description: Use when the user wants Claude Code, through Claude Code Bridge, to produce architecture plans, specs, sequencing, risk analysis, or implementation strategy for Codex.
 ---
 
 # Claude Plan
 
-Use this skill to delegate planning to Claude Code through the Agent Bridge Claude adapter CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+Use this skill to delegate planning to Claude Code through the Claude Code Bridge CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
 
 ## When To Use
 

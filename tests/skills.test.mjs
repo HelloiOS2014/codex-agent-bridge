@@ -5,13 +5,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const pluginRoot = path.join(root, "plugins", "agent-bridge");
+const pluginRoot = path.join(root, "plugins", "claude-code-bridge");
 
 const skillFiles = [
-  "plugins/agent-bridge/skills/claude-plan/SKILL.md",
-  "plugins/agent-bridge/skills/claude-review/SKILL.md",
-  "plugins/agent-bridge/skills/claude-rescue/SKILL.md",
-  "plugins/agent-bridge/skills/claude-result-handling/SKILL.md"
+  "plugins/claude-code-bridge/skills/claude-plan/SKILL.md",
+  "plugins/claude-code-bridge/skills/claude-review/SKILL.md",
+  "plugins/claude-code-bridge/skills/claude-rescue/SKILL.md",
+  "plugins/claude-code-bridge/skills/claude-result-handling/SKILL.md"
 ];
 
 function read(relativePath) {
@@ -23,7 +23,7 @@ function readJson(relativePath) {
 }
 
 test("manifest exposes the skills directory and all expected skills exist", () => {
-  const manifest = readJson("plugins/agent-bridge/.codex-plugin/plugin.json");
+  const manifest = readJson("plugins/claude-code-bridge/.codex-plugin/plugin.json");
 
   assert.equal(manifest.skills, "./skills/");
   assert.equal(Object.hasOwn(manifest, "mcpServers"), false);
@@ -62,8 +62,8 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Add plugin marketplace/);
   assert.match(readme, /Source: `git@github\.com:HelloiOS2014\/codex-agent-bridge\.git`/);
   assert.match(readme, /Git ref: `main`/);
-  assert.match(readme, /Sparse path: leave empty/);
-  assert.match(readme, /Do not enter `plugins\/agent-bridge`, `plugins\/codex`, or `\.agents\/plugins`/);
+  assert.match(readme, /Sparse path: leave empty for the full Agent Bridge marketplace/);
+  assert.match(readme, /Sparse path: `plugins\/claude-code-bridge`/);
   assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
@@ -80,7 +80,8 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.doesNotMatch(readme, /Git ref: `codex\/claude-companion-plugin`/);
   assert.match(readme, /Agent Bridge/);
   assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
-  assert.match(readme, /plugins\/agent-bridge/);
+  assert.match(readme, /plugins\/claude-code-bridge/);
+  assert.match(readme, /Claude Code Bridge/);
   assert.doesNotMatch(readme, /codex plugin marketplace list/);
   assert.doesNotMatch(readme, /node scripts\/install-personal-marketplace\.mjs/);
   assert.doesNotMatch(readme, /~\/\.codex\/plugins\/claude-companion/);
@@ -96,7 +97,8 @@ test("AGENTS guide documents maintenance invariants", () => {
   const guide = read("AGENTS.md");
 
   assert.match(guide, /Core Rules/);
-  assert.match(guide, /Keep the plugin CLI-only/);
+  assert.match(guide, /Keep every plugin CLI-only/);
+  assert.match(guide, /Do not route multiple agents through one generic plugin by keyword matching/);
   assert.match(guide, /Do not add MCP servers/);
   assert.match(guide, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs"/);
   assert.doesNotMatch(guide, /node scripts\/claude-companion\.mjs/);
@@ -109,9 +111,10 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
-  assert.match(guide, /single-plugin repository/);
-  assert.match(guide, /\.\/plugins\/agent-bridge/);
-  assert.doesNotMatch(guide, /source\.local\.path = "\.\/"/);
+  assert.match(guide, /multi-plugin marketplace repository/);
+  assert.match(guide, /\.\/plugins\/claude-code-bridge/);
+  assert.match(guide, /plugin-local marketplace/);
+  assert.match(guide, /source\.path = "\.\/"/);
   assert.match(guide, /Do not document personal marketplace copying/);
   assert.match(guide, /npm test/);
   assert.match(guide, /npm run check:manifest/);
@@ -123,9 +126,9 @@ test("local marketplace exposes the plugin package", () => {
   assert.equal(marketplace.name, "codex-agent-bridge");
   assert.equal(marketplace.interface.displayName, "Agent Bridge");
   assert.equal(marketplace.plugins.length, 1);
-  assert.equal(marketplace.plugins[0].name, "agent-bridge");
+  assert.equal(marketplace.plugins[0].name, "claude-code-bridge");
   assert.equal(marketplace.plugins[0].source.source, "local");
-  assert.equal(marketplace.plugins[0].source.path, "./plugins/agent-bridge");
+  assert.equal(marketplace.plugins[0].source.path, "./plugins/claude-code-bridge");
   assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
   assert.equal(marketplace.plugins[0].category, "Developer Tools");
   assert.equal(Object.hasOwn(marketplace.plugins[0], "interface"), false);
@@ -133,14 +136,26 @@ test("local marketplace exposes the plugin package", () => {
   const pluginManifestPath = path.join(marketplace.plugins[0].source.path, ".codex-plugin/plugin.json");
   const plugin = readJson(pluginManifestPath);
   assert.equal(path.resolve(root, marketplace.plugins[0].source.path), pluginRoot);
-  assert.equal(plugin.interface.displayName, "Agent Bridge");
+  assert.equal(plugin.interface.displayName, "Claude Code Bridge");
   assert.equal(plugin.interface.category, "Developer Tools");
 });
 
+test("claude plugin carries a single-plugin marketplace for sparse install", () => {
+  const marketplace = readJson("plugins/claude-code-bridge/.agents/plugins/marketplace.json");
+
+  assert.equal(marketplace.name, "claude-code-bridge");
+  assert.equal(marketplace.interface.displayName, "Claude Code Bridge");
+  assert.equal(marketplace.plugins.length, 1);
+  assert.equal(marketplace.plugins[0].name, "claude-code-bridge");
+  assert.equal(marketplace.plugins[0].source.source, "local");
+  assert.equal(marketplace.plugins[0].source.path, "./");
+  assert.equal(marketplace.plugins[0].category, "Developer Tools");
+});
+
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
-  const plan = read("plugins/agent-bridge/skills/claude-plan/SKILL.md");
-  const review = read("plugins/agent-bridge/skills/claude-review/SKILL.md");
-  const rescue = read("plugins/agent-bridge/skills/claude-rescue/SKILL.md");
+  const plan = read("plugins/claude-code-bridge/skills/claude-plan/SKILL.md");
+  const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
+  const rescue = read("plugins/claude-code-bridge/skills/claude-rescue/SKILL.md");
 
   assert.match(plan, /Planning is read-only/);
   assert.doesNotMatch(plan, /--write/);
@@ -191,11 +206,11 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /--background --json/);
   assert.match(combined, /--wait --json/);
 
-  const review = read("plugins/agent-bridge/skills/claude-review/SKILL.md");
+  const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" adversarial-review --json --scope auto --prompt "\$FOCUS"/);
 
-  const rescue = read("plugins/agent-bridge/skills/claude-rescue/SKILL.md");
+  const rescue = read("plugins/claude-code-bridge/skills/claude-rescue/SKILL.md");
   assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --json --prompt "\$PROMPT"/);
   assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --write --json --prompt "\$PROMPT"/);
 });

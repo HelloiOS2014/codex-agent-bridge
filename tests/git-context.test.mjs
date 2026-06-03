@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { makeTempDir, makeTempGitRepo } from "./helpers.mjs";
-import { collectReviewContext, resolveBaselineRef, resolveReviewTarget } from "../plugins/agent-bridge/scripts/lib/git-context.mjs";
+import { collectReviewContext, resolveBaselineRef, resolveReviewTarget } from "../plugins/claude-code-bridge/scripts/lib/git-context.mjs";
 
 async function git(cwd, args) {
-  const { runCommand } = await import("../plugins/agent-bridge/scripts/lib/process.mjs");
+  const { runCommand } = await import("../plugins/claude-code-bridge/scripts/lib/process.mjs");
   const result = await runCommand("git", args, { cwd });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return result.stdout.trimEnd();

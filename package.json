@@ -10,6 +10,6 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check:manifest": "node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('plugins/agent-bridge/.codex-plugin/plugin.json','utf8')); if(!p.name||!p.version||!p.skills||!p.interface) process.exit(1);\""
+    "check:manifest": "node scripts/check-manifest.mjs"
   }
 }

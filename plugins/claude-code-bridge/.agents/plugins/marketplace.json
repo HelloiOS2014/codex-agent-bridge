@@ -1,14 +1,14 @@
 {
-  "name": "codex-agent-bridge",
+  "name": "claude-code-bridge",
   "interface": {
-    "displayName": "Agent Bridge"
+    "displayName": "Claude Code Bridge"
   },
   "plugins": [
     {
       "name": "claude-code-bridge",
       "source": {
         "source": "local",
-        "path": "./plugins/claude-code-bridge"
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",
