@@ -1,0 +1,20 @@
+{
+  "name": "claude-companion-local",
+  "plugins": [
+    {
+      "name": "claude-companion",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Coding",
+      "interface": {
+        "displayName": "Claude Companion"
+      }
+    }
+  ]
+}

@@ -11,13 +11,104 @@ The plugin is skill-driven and CLI-only. It does not use MCP.
 - Codex must expose the plugin root as `CLAUDE_PLUGIN_ROOT` when skills call the companion CLI.
 - Optional: set `CLAUDE_COMPANION_CLAUDE_BIN` if `claude` is not on `PATH`.
 
-Check readiness:
+Verify Claude Code before installing the plugin:
+
+```bash
+claude --version
+claude auth status
+```
+
+If Claude Code is not authenticated, run:
+
+```bash
+claude auth login
+```
+
+## Installation
+
+### Install From This Git Repository
+
+This repository includes a local marketplace file at `.agents/plugins/marketplace.json`, so Codex can add the repository as a marketplace source.
+
+```bash
+codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref codex/claude-companion-plugin
+codex plugin marketplace list
+```
+
+Then install the plugin:
+
+- Codex app: open **Plugins**, choose the `claude-companion-local` marketplace, open **Claude Companion**, and select **Add to Codex**.
+- Codex CLI: run `codex`, enter `/plugins`, choose the `claude-companion-local` marketplace, open **Claude Companion**, and select `Install plugin`.
+
+Restart Codex or start a new thread after installation so the bundled skills are loaded.
+
+### Install From A Local Checkout
+
+Use this when you are testing an unpublished checkout.
+
+```bash
+git clone git@github.com:HelloiOS2014/claude_work.git ~/code/claude_work
+cd ~/code/claude_work
+git checkout codex/claude-companion-plugin
+codex plugin marketplace add "$(pwd)"
+```
+
+Then install it from **Plugins** in the Codex app or `/plugins` in the Codex CLI.
+
+### Manual Personal Marketplace
+
+Use this when you do not want Codex to track the Git repository as a marketplace source.
+
+```bash
+PLUGIN_SRC="/absolute/path/to/claude_work"
+mkdir -p "$HOME/.codex/plugins/claude-companion" "$HOME/.agents/plugins"
+cp -R "$PLUGIN_SRC"/. "$HOME/.codex/plugins/claude-companion/"
+```
+
+Create or update `~/.agents/plugins/marketplace.json`:
+
+```json
+{
+  "name": "personal-local",
+  "plugins": [
+    {
+      "name": "claude-companion",
+      "source": {
+        "source": "local",
+        "path": "./.codex/plugins/claude-companion"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Coding",
+      "interface": {
+        "displayName": "Claude Companion"
+      }
+    }
+  ]
+}
+```
+
+Restart Codex, open **Plugins** or `/plugins`, and install **Claude Companion** from the `personal-local` marketplace.
+
+### Verify Installation
+
+Start a new Codex thread and run one of these prompts:
+
+```text
+Check Claude Companion setup.
+Ask Claude to plan a small README cleanup.
+Ask Claude to review my current changes.
+```
+
+The setup check should call:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
-`ready: true` means Claude Code is available and authenticated.
+Expected result: `ready: true`, which means Claude Code is available and authenticated.
 
 ## How Codex Uses It
 
@@ -165,6 +256,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 ## Repository Layout
 
 - `.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
+- `.agents/plugins/marketplace.json`: local marketplace entry for installing this repository as a Codex plugin source.
 - `skills/`: Codex skill instructions for plan, review, rescue, and result handling.
 - `scripts/claude-companion.mjs`: CLI entrypoint.
 - `scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
@@ -176,3 +268,11 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 
 - Tests use a deterministic fake Claude fixture; they do not prove real Claude Code long-task behavior.
 - `npm run check:manifest` is a lightweight manifest check. Detailed plugin behavior is covered by `npm test`.
+
+## Troubleshooting
+
+- Plugin does not appear: run `codex plugin marketplace list`, confirm the marketplace root is present, then restart Codex.
+- Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
+- `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.
+- Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
+- Local copy is stale: update the plugin directory or run `codex plugin marketplace upgrade`, then restart Codex.

@@ -22,9 +22,10 @@ This repository builds a Codex plugin that lets Codex call local Claude Code for
 
 ## Documentation Rules
 
-- README must document Codex usage, direct CLI usage, safety model, background jobs, state storage, tests, and repository layout.
+- README must document installation, Codex usage, direct CLI usage, safety model, background jobs, state storage, tests, troubleshooting, and repository layout.
 - README and all skills must mention the `$CLAUDE_PLUGIN_ROOT` command path.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, and `cancel`.
+- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout.
 - Update `tests/skills.test.mjs` when changing README or skill behavior.
 
 ## Verification

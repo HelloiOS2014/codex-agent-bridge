@@ -55,12 +55,24 @@ test("README command surface uses plugin root and lists all skills", () => {
   }
 
   assert.match(readme, /Safety Model/);
+  assert.match(readme, /Installation/);
+  assert.match(readme, /Install From This Git Repository/);
+  assert.match(readme, /Install From A Local Checkout/);
+  assert.match(readme, /Manual Personal Marketplace/);
+  assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
   assert.match(readme, /Background Jobs/);
   assert.match(readme, /State Storage/);
   assert.match(readme, /Repository Layout/);
   assert.match(readme, /Limits/);
+  assert.match(readme, /Troubleshooting/);
+  assert.match(readme, /codex plugin marketplace add git@github\.com:HelloiOS2014\/claude_work\.git --ref codex\/claude-companion-plugin/);
+  assert.match(readme, /codex plugin marketplace add "\$\(pwd\)"/);
+  assert.match(readme, /codex plugin marketplace list/);
+  assert.match(readme, /claude-companion-local/);
+  assert.match(readme, /personal-local/);
+  assert.match(readme, /\.agents\/plugins\/marketplace\.json/);
   assert.match(readme, /Do not automatically apply Claude output/);
   assert.match(readme, /stage, commit, or push/);
   assert.match(readme, /does not use MCP/);
@@ -81,8 +93,22 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Background Job Rules/);
   assert.match(guide, /status`, `result`, and `cancel` must support the same `--cwd`/);
   assert.match(guide, /Documentation Rules/);
+  assert.match(guide, /README must document installation/);
+  assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /npm test/);
   assert.match(guide, /npm run check:manifest/);
+});
+
+test("local marketplace exposes the plugin package", () => {
+  const marketplace = readJson(".agents/plugins/marketplace.json");
+
+  assert.equal(marketplace.name, "claude-companion-local");
+  assert.equal(marketplace.plugins.length, 1);
+  assert.equal(marketplace.plugins[0].name, "claude-companion");
+  assert.equal(marketplace.plugins[0].source.source, "local");
+  assert.equal(marketplace.plugins[0].source.path, "./");
+  assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
+  assert.equal(marketplace.plugins[0].interface.displayName, "Claude Companion");
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
