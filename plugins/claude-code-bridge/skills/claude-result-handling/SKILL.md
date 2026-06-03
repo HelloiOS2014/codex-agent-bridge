@@ -60,6 +60,8 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status --all --brief --j
 
 `status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries, and bounded `stdoutTail` / `stderrTail` fields. Use these fields to report whether a long-running job has started, whether safe process ids are still known, whether Claude has produced output, how long it has been active, and when the bridge last recorded activity. Use `status --brief --json` when polling or reading broad history so prompt args, stdout/stderr tails, and embedded stored results are omitted.
 
+A running job can legitimately have empty stdout/stderr for a while. Do not cancel, add a timeout, or rerun only because stdout/stderr is quiet or `metadata.resultAvailable` is `false`; keep polling unless the user set a time budget, the job reaches a terminal state, or status evidence shows the job is stale.
+
 Latest finished result:
 
 ```bash

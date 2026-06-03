@@ -224,6 +224,8 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 
 `status --json` includes `phase`, `pid`, `claudePid`, `claudeArgv`, `runtimeMs`, `idleMs`, `lastActivityAt`, `firstOutputAt`, `lastOutputAt`, bounded `recentLog` entries, and bounded `stdoutTail` / `stderrTail` fields so callers can tell whether a long-running job has started, spawned Claude, produced output, and where it last recorded activity. Use `status --brief --json` when polling or reading broad history so prompt args, stdout/stderr tails, and embedded stored results are omitted.
 
+Running Claude jobs can legitimately have empty stdout/stderr for a while. Agents should not cancel, add a timeout, or rerun only because stdout/stderr is quiet or `metadata.resultAvailable` is `false`; they should keep polling unless the user set a time budget, the job reaches a terminal state, or status evidence shows the job is stale.
+
 `result "$JOB_ID" --json` on a queued or running job returns the job status with `metadata.resultAvailable: false` instead of reporting a failed result. `cancel "$JOB_ID" --json` reports whether TERM or KILL was signalled and whether the known worker / Claude process ids exited.
 
 For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`:
