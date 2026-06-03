@@ -28,6 +28,22 @@ claude auth login
 
 This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json` and points back to this same repository as the plugin source.
 
+### Codex App
+
+In the Codex app:
+
+1. Open **Plugins** from the sidebar.
+2. Click **Create** and choose **Add plugin marketplace**.
+3. Fill the dialog:
+   - Source: `git@github.com:HelloiOS2014/claude_work.git`
+   - Git ref: `codex/claude-companion-plugin`
+   - Sparse path: leave empty. Do not enter `plugins/codex` or `.agents/plugins`.
+4. Click **Add marketplace**.
+5. Choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
+6. Restart Codex or start a new thread so the bundled skills are loaded.
+
+### Codex CLI
+
 ```bash
 codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref codex/claude-companion-plugin
 ```

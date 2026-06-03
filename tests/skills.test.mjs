@@ -56,6 +56,13 @@ test("README command surface uses plugin root and lists all skills", () => {
 
   assert.match(readme, /Safety Model/);
   assert.match(readme, /Installation/);
+  assert.match(readme, /Codex App/);
+  assert.match(readme, /Codex CLI/);
+  assert.match(readme, /Add plugin marketplace/);
+  assert.match(readme, /Source: `git@github\.com:HelloiOS2014\/claude_work\.git`/);
+  assert.match(readme, /Git ref: `codex\/claude-companion-plugin`/);
+  assert.match(readme, /Sparse path: leave empty/);
+  assert.match(readme, /Do not enter `plugins\/codex` or `\.agents\/plugins`/);
   assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
@@ -94,6 +101,7 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /status`, `result`, and `cancel` must support the same `--cwd`/);
   assert.match(guide, /Documentation Rules/);
   assert.match(guide, /README must document installation/);
+  assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /single-plugin repository/);
   assert.match(guide, /source\.local\.path = "\.\/"/);
