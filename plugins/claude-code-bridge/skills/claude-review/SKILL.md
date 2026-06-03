@@ -25,6 +25,8 @@ Use this skill to delegate read-only review to Claude Code through the Claude Co
 - Normal review and adversarial review are read-only.
 - Do not fix issues, apply patches, create commits, or continue into implementation in the same delegated review.
 - Do not automatically apply Claude output, stage files, create commits, or push changes from review flows.
+- Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
+- For broad branch reviews, large diffs, or deep adversarial review, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; normal review uses pre-collected git context and no Claude tools by default.

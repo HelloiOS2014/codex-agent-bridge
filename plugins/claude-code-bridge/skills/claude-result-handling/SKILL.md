@@ -25,6 +25,7 @@ Use this skill to check setup and manage Claude Code Bridge background or waited
 
 - Setup, status, result, and cancel do not edit project files.
 - Do not automatically apply stored Claude output, stage files, create commits, or push changes while handling results.
+- Do not add `--timeout` or `--timeout-ms` to status, result, or cancel commands.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; job management should only call the companion CLI commands below.

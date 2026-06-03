@@ -26,6 +26,8 @@ Use this skill to delegate investigation or implementation rescue work to Claude
 - Add `--write` only when write access was explicitly requested by the user.
 - Do not automatically apply patch text returned by Claude; only `rescue --write` grants Claude a scoped write run after explicit user request.
 - Do not stage files, create commits, or push changes from rescue flows.
+- Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
+- For long debugging, reproduction, or implementation rescue, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; read-only rescue uses the companion read profile.

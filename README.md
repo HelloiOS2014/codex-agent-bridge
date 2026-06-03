@@ -147,7 +147,7 @@ Common options:
 - `--prompt-file <file>`: read the prompt from a file relative to the command workspace.
 - `--background`: start a stored job and return immediately.
 - `--wait`: store the job, wait for completion, and return the result.
-- `--timeout-ms <n>` or `--timeout <n>`: cancel foreground Claude execution after the timeout.
+- `--timeout-ms <n>` or `--timeout <n>`: optional hard stop for deliberate time-boxed runs. Agents should not add this by default.
 
 Review options:
 
@@ -157,6 +157,8 @@ Review options:
 - `--max-untracked-file-bytes <n>`
 
 ## Background Jobs
+
+Agents should use background jobs for broad plans, deep reviews, adversarial passes, long debugging, and implementation rescue. Do not add `--timeout` or `--timeout-ms` to normal delegated work unless the user gave an explicit time budget, the command is a smoke test, or the agent is intentionally probing cancellation behavior.
 
 Start a long-running job:
 

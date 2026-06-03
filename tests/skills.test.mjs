@@ -50,6 +50,8 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" result/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel "\$JOB_ID"/);
   assert.match(readme, /background or waited jobs started with `--cwd <workspace>`/);
+  assert.match(readme, /Agents should use background jobs for broad plans/);
+  assert.match(readme, /Agents should not add this by default/);
 
   for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
     assert.match(readme, new RegExp(`\\b${skill}\\b`));
@@ -110,6 +112,7 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /README must document installation/);
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /main branch as the install ref/);
+  assert.match(guide, /not to add `--timeout` or `--timeout-ms` by default/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /multi-plugin marketplace repository/);
   assert.match(guide, /\.\/plugins\/claude-code-bridge/);
@@ -205,6 +208,8 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /background or waited job was started with `--cwd "\$WORKSPACE"`/);
   assert.match(combined, /--background --json/);
   assert.match(combined, /--wait --json/);
+  assert.match(combined, /Do not add `--timeout` or `--timeout-ms` by default/);
+  assert.match(combined, /hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only/);
 
   const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);

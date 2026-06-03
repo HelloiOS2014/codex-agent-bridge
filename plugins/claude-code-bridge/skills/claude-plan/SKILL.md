@@ -25,6 +25,8 @@ Use this skill to delegate planning to Claude Code through the Claude Code Bridg
 - Planning is read-only.
 - Do not ask Claude to edit files, create commits, or run write commands.
 - Do not automatically apply Claude output, stage files, create commits, or push changes from planning flows.
+- Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
+- For broad repo planning, multi-step architecture work, risk reviews, or anything likely to exceed a short foreground response, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; the companion plan command owns the allowed read profile.

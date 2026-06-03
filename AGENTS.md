@@ -29,6 +29,7 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 - README installation docs must use the main branch as the install ref, not a development branch.
 - README installation docs must cover full marketplace installation and single-plugin sparse installation.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, and `cancel`.
+- Skills must tell Codex agents not to add `--timeout` or `--timeout-ms` by default. Expected long-running delegated work should use `--background --json`; timeout flags are only for explicit user time budgets, smoke tests, or deliberate cancellation-style probes.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
 - Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`.
 - Keep each installable plugin's plugin-local marketplace valid for single-plugin sparse installation. For Claude Code Bridge, `plugins/claude-code-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.
