@@ -1,5 +1,8 @@
 {
-  "name": "claude-companion-local",
+  "name": "claude-work",
+  "interface": {
+    "displayName": "Claude Work"
+  },
   "plugins": [
     {
       "name": "claude-companion",

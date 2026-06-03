@@ -56,9 +56,6 @@ test("README command surface uses plugin root and lists all skills", () => {
 
   assert.match(readme, /Safety Model/);
   assert.match(readme, /Installation/);
-  assert.match(readme, /Install From This Git Repository/);
-  assert.match(readme, /Install From A Local Checkout/);
-  assert.match(readme, /Manual Personal Marketplace/);
   assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
@@ -68,11 +65,13 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Limits/);
   assert.match(readme, /Troubleshooting/);
   assert.match(readme, /codex plugin marketplace add git@github\.com:HelloiOS2014\/claude_work\.git --ref codex\/claude-companion-plugin/);
-  assert.match(readme, /codex plugin marketplace add "\$\(pwd\)"/);
-  assert.match(readme, /codex plugin marketplace upgrade claude-companion-local/);
+  assert.match(readme, /codex plugin marketplace upgrade claude-work/);
+  assert.match(readme, /codex plugin marketplace remove claude-companion-local/);
+  assert.match(readme, /Claude Work/);
+  assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
   assert.doesNotMatch(readme, /codex plugin marketplace list/);
-  assert.match(readme, /claude-companion-local/);
-  assert.match(readme, /personal-local/);
+  assert.doesNotMatch(readme, /node scripts\/install-personal-marketplace\.mjs/);
+  assert.doesNotMatch(readme, /~\/\.codex\/plugins\/claude-companion/);
   assert.match(readme, /\.agents\/plugins\/marketplace\.json/);
   assert.match(readme, /Do not automatically apply Claude output/);
   assert.match(readme, /stage, commit, or push/);
@@ -96,6 +95,9 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Documentation Rules/);
   assert.match(guide, /README must document installation/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
+  assert.match(guide, /single-plugin repository/);
+  assert.match(guide, /source\.local\.path = "\.\/"/);
+  assert.match(guide, /Do not document personal marketplace copying/);
   assert.match(guide, /npm test/);
   assert.match(guide, /npm run check:manifest/);
 });
@@ -103,7 +105,8 @@ test("AGENTS guide documents maintenance invariants", () => {
 test("local marketplace exposes the plugin package", () => {
   const marketplace = readJson(".agents/plugins/marketplace.json");
 
-  assert.equal(marketplace.name, "claude-companion-local");
+  assert.equal(marketplace.name, "claude-work");
+  assert.equal(marketplace.interface.displayName, "Claude Work");
   assert.equal(marketplace.plugins.length, 1);
   assert.equal(marketplace.plugins[0].name, "claude-companion");
   assert.equal(marketplace.plugins[0].source.source, "local");
