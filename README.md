@@ -1,35 +1,137 @@
 # Claude Companion Codex Plugin
 
-Claude Companion lets Codex delegate planning, code review, adversarial review, and explicitly write-enabled rescue tasks to local Claude Code.
+Claude Companion is a Codex plugin for delegating planning, code review, adversarial review, and explicitly write-enabled rescue work to local Claude Code.
 
-Command surface:
+The plugin is skill-driven and CLI-only. It does not use MCP.
+
+## Requirements
+
+- Node.js 18.18 or newer.
+- Local Claude Code CLI installed and authenticated.
+- Codex must expose the plugin root as `CLAUDE_PLUGIN_ROOT` when skills call the companion CLI.
+- Optional: set `CLAUDE_COMPANION_CLAUDE_BIN` if `claude` is not on `PATH`.
+
+Check readiness:
 
 ```bash
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan this change"
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --scope working-tree
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review "challenge this caching design"
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write "fix the failing test"
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status [--cwd <workspace>]
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result [--cwd <workspace>]
-node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel <job-id> [--cwd <workspace>]
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
-`CLAUDE_PLUGIN_ROOT` must point at this plugin's installed root, so commands do not depend on Codex's current workspace directory.
-For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`.
+`ready: true` means Claude Code is available and authenticated.
 
-`plan`, `review`, and `adversarial-review` are read-only. `rescue` can edit files only when `--write` is present.
+## How Codex Uses It
+
+After the plugin is installed and enabled, Codex loads the skills in [`skills/`](skills/). The skills route natural-language requests to the companion CLI.
+
+Use these request patterns in Codex:
+
+- Planning: "Ask Claude to plan this architecture", "让 Claude 规划这个改动".
+- Normal review: "Ask Claude to review my current changes", "让 Claude review 当前工作区".
+- Adversarial review: "Ask Claude to challenge this design", "让 Claude 从反方审查这个方案".
+- Read-only rescue: "Ask Claude to investigate this failure", "让 Claude 排查这个问题但不要改文件".
+- Write-enabled rescue: "Ask Claude to fix this issue", "让 Claude 修复这个问题".
+- Job handling: "Check the Claude job status", "Show the last Claude result", "Cancel that Claude job".
+
+Skill mapping:
+
+| Skill | Purpose | Default write access |
+| --- | --- | --- |
+| `claude-plan` | Architecture, rollout, risk, and implementation planning | Read-only |
+| `claude-review` | Normal review and adversarial review | Read-only |
+| `claude-rescue` | Investigation, dry-run rescue, or explicit implementation rescue | Read-only unless `--write` is used |
+| `claude-result-handling` | Setup, status, result, and cancellation for stored jobs | Read-only |
+
+## Direct CLI Usage
+
+The skills call the CLI through `CLAUDE_PLUGIN_ROOT`. Direct use should do the same so commands do not depend on the reviewed repository's current directory.
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --json --scope working-tree
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review --json --scope auto --prompt "$FOCUS"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write --json --prompt "$PROMPT"
+```
+
+Common options:
+
+- `--cwd <workspace>`: run against a specific repository/workspace.
+- `--json`: return machine-readable output for Codex to parse.
+- `--prompt <text>`: pass the prompt explicitly.
+- `--prompt-file <file>`: read the prompt from a file relative to the command workspace.
+- `--background`: start a stored job and return immediately.
+- `--wait`: store the job, wait for completion, and return the result.
+- `--timeout-ms <n>` or `--timeout <n>`: cancel foreground Claude execution after the timeout.
+
+Review options:
+
+- `--scope auto|working-tree|branch`
+- `--base <ref>` or `--against <ref>`
+- `--max-diff-bytes <n>`
+- `--max-untracked-file-bytes <n>`
+
+## Background Jobs
+
+Start a long-running job:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan --background --json --prompt "$PROMPT"
+```
+
+Wait while still recording the job:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --wait --json --scope working-tree
+```
+
+Manage jobs:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
+```
+
+For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --cwd "$WORKSPACE" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --cwd "$WORKSPACE" --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --cwd "$WORKSPACE" --json
+```
+
+## State Storage
+
+Job state is stored outside the reviewed project. State root priority:
+
+1. `CLAUDE_COMPANION_STATE_DIR`
+2. `CODEX_PLUGIN_DATA`
+3. `CLAUDE_PLUGIN_DATA`
+4. OS temp directory under `claude-companion`
+
+Each workspace gets a hashed state directory. Job ids are safe filename identifiers and are validated before reading or writing job files.
 
 ## Safety Model
 
 - `plan`, `review`, and `adversarial-review` are read-only companion commands.
 - `rescue` is read-only unless `--write` is present.
+- `rescue --write` is only for explicit user requests to edit or implement.
 - Dangerous Claude Code bypass flags are rejected by the companion.
 - Do not automatically apply Claude output, and do not stage, commit, or push from companion flows.
-- Job state is stored outside the reviewed project by default.
+- Job management commands do not edit project files.
 - The plugin is CLI-only and does not use MCP.
 
+Rejected dangerous options include:
+
+- `--dangerously-skip-permissions`
+- `--allow-dangerously-skip-permissions`
+- `--dangerously-bypass-approvals-and-sandbox`
+- `--permission-mode bypassPermissions`
+
 ## Testing
+
+Run the full test suite:
 
 ```bash
 npm test
@@ -45,4 +147,32 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan the plugin"
 ```
 
-Codex skill guidance lives in [`skills/`](skills/): `claude-plan`, `claude-review`, `claude-rescue`, and `claude-result-handling`.
+Review smoke in a temporary dirty repository:
+
+```bash
+tmpdir="$(mktemp -d)"
+git -C "$tmpdir" init -q
+git -C "$tmpdir" config user.email test@example.com
+git -C "$tmpdir" config user.name "Test User"
+printf "initial\n" > "$tmpdir/README.md"
+git -C "$tmpdir" add README.md
+git -C "$tmpdir" commit -q -m initial
+printf "changed\n" > "$tmpdir/changed.txt"
+CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
+  node "$PWD/scripts/claude-companion.mjs" review --cwd "$tmpdir" --scope working-tree
+```
+
+## Repository Layout
+
+- `.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
+- `skills/`: Codex skill instructions for plan, review, rescue, and result handling.
+- `scripts/claude-companion.mjs`: CLI entrypoint.
+- `scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
+- `schemas/review-output.schema.json`: normalized result schema.
+- `tests/`: fake Claude fixture and automated tests.
+- `AGENTS.md`: maintenance rules for future agents.
+
+## Limits
+
+- Tests use a deterministic fake Claude fixture; they do not prove real Claude Code long-task behavior.
+- `npm run check:manifest` is a lightweight manifest check. Detailed plugin behavior is covered by `npm test`.

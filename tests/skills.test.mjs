@@ -47,7 +47,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --write /);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" status/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" result/);
-  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel <job-id>/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel "\$JOB_ID"/);
   assert.match(readme, /background or waited jobs started with `--cwd <workspace>`/);
 
   for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
@@ -55,9 +55,34 @@ test("README command surface uses plugin root and lists all skills", () => {
   }
 
   assert.match(readme, /Safety Model/);
+  assert.match(readme, /How Codex Uses It/);
+  assert.match(readme, /Direct CLI Usage/);
+  assert.match(readme, /Background Jobs/);
+  assert.match(readme, /State Storage/);
+  assert.match(readme, /Repository Layout/);
+  assert.match(readme, /Limits/);
   assert.match(readme, /Do not automatically apply Claude output/);
   assert.match(readme, /stage, commit, or push/);
   assert.match(readme, /does not use MCP/);
+  assert.match(readme, /Claude Code CLI installed and authenticated/);
+  assert.match(readme, /Ask Claude to review my current changes/);
+});
+
+test("AGENTS guide documents maintenance invariants", () => {
+  const guide = read("AGENTS.md");
+
+  assert.match(guide, /Core Rules/);
+  assert.match(guide, /Keep the plugin CLI-only/);
+  assert.match(guide, /Do not add MCP servers/);
+  assert.match(guide, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs"/);
+  assert.doesNotMatch(guide, /node scripts\/claude-companion\.mjs/);
+  assert.match(guide, /plan`, `review`, and `adversarial-review` must remain read-only/);
+  assert.match(guide, /rescue` must remain read-only unless/);
+  assert.match(guide, /Background Job Rules/);
+  assert.match(guide, /status`, `result`, and `cancel` must support the same `--cwd`/);
+  assert.match(guide, /Documentation Rules/);
+  assert.match(guide, /npm test/);
+  assert.match(guide, /npm run check:manifest/);
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
