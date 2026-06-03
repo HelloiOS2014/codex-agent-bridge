@@ -6,8 +6,11 @@ import path from "node:path";
 import { completeJobRecord, createJobRecord, startJobRecord } from "../plugins/claude-code-bridge/scripts/lib/jobs.mjs";
 import { runStoredJob, spawnBackgroundJob } from "../plugins/claude-code-bridge/scripts/lib/background.mjs";
 import {
+  appendJobLog,
+  listJobFileIds,
   readJobFile,
   readJobResultFile,
+  resolveJobFile,
   resolveStateDir,
   writeJobFile,
   writeJobResultFile
@@ -654,4 +657,122 @@ test("json error handling stays valid for background command parse errors", asyn
   assert.equal(payload.kind, "plan");
   assert.equal(payload.status, "failed");
   assert.match(payload.error, /mutually exclusive/);
+});
+
+test("background job creation fails before queueing when storage quota is exhausted by active jobs", async () => {
+  const stateDir = makeTempDir("background-quota-state-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const active = startJobRecord(createJobRecord({
+    kind: "plan",
+    cwd: repoRoot,
+    workspaceRoot: repoRoot,
+    command: "plan",
+    args: ["already", "running"],
+    env
+  }), process.pid);
+  writeJobFile(repoRoot, active.id, active, env);
+  appendJobLog(repoRoot, active.id, "active ".repeat(40), {
+    ...env,
+    CLAUDE_COMPANION_MAX_LOG_BYTES: "1000"
+  });
+
+  const launch = await runCli(["plan", "--background", "--json", "quota", "blocked"], {
+    stateDir,
+    env: { CLAUDE_COMPANION_MAX_STATE_BYTES: "120" }
+  });
+
+  assert.equal(launch.status, 1);
+  assert.match(JSON.parse(launch.stdout).error, /storage quota/i);
+  assert.deepEqual(listJobFileIds(repoRoot, env), [active.id]);
+});
+
+test("completed background jobs prune old terminal artifacts and keep latest result readable", async () => {
+  const stateDir = makeTempDir("background-cleanup-state-");
+  const env = {
+    CLAUDE_COMPANION_STATE_DIR: stateDir,
+    CLAUDE_COMPANION_MAX_JOBS: "1",
+    CLAUDE_COMPANION_MAX_JOB_AGE_DAYS: "365"
+  };
+  const old = completeJobRecord(createJobRecord({
+    kind: "plan",
+    cwd: repoRoot,
+    workspaceRoot: repoRoot,
+    command: "plan",
+    args: ["old"],
+    env
+  }), {
+    kind: "plan",
+    status: "completed",
+    summary: "old",
+    rawOutput: "old",
+    rendered: "old",
+    metadata: { jobId: "old" }
+  });
+  const oldTerminal = {
+    ...old,
+    id: "old-terminal",
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    endedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  writeJobFile(repoRoot, oldTerminal.id, oldTerminal, env);
+  writeJobResultFile(repoRoot, oldTerminal.id, oldTerminal.result, env);
+
+  const launch = await runCli(["plan", "--background", "--json", "new", "cleanup"], {
+    stateDir,
+    env: {
+      CLAUDE_COMPANION_MAX_JOBS: "1",
+      CLAUDE_COMPANION_MAX_JOB_AGE_DAYS: "365"
+    }
+  });
+  assert.equal(launch.status, 0);
+  const jobId = JSON.parse(launch.stdout).job.id;
+  await waitForJobStatus(jobId, "completed", {
+    stateDir,
+    env: {
+      CLAUDE_COMPANION_MAX_JOBS: "1",
+      CLAUDE_COMPANION_MAX_JOB_AGE_DAYS: "365"
+    }
+  });
+
+  assert.equal(fs.existsSync(resolveJobFile(repoRoot, oldTerminal.id, env)), false);
+  const result = await runCli(["result", jobId, "--json"], {
+    stateDir,
+    env: {
+      CLAUDE_COMPANION_MAX_JOBS: "1",
+      CLAUDE_COMPANION_MAX_JOB_AGE_DAYS: "365"
+    }
+  });
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).status, "completed");
+});
+
+test("storage and cleanup commands report usage and support dry-run json mode", async () => {
+  const stateDir = makeTempDir("background-storage-command-state-");
+  const workspaceRoot = makeTempDir("background-storage-command-workspace-");
+  const launch = await runCli(["plan", "--wait", "--json", "storage", "command"], { stateDir });
+  assert.equal(launch.status, 0);
+  const cwdLaunch = await runCli(["plan", "--wait", "--json", "--cwd", workspaceRoot, "storage", "cwd"], { stateDir });
+  assert.equal(cwdLaunch.status, 0);
+
+  const storage = await runCli(["storage", "--json"], { stateDir });
+  assert.equal(storage.status, 0);
+  const storagePayload = JSON.parse(storage.stdout);
+  assert.equal(storagePayload.stateRoot, stateDir);
+  assert.ok(storagePayload.totalBytes > 0);
+
+  const cwdStorage = await runCli(["storage", "--cwd", workspaceRoot, "--json"], { stateDir });
+  assert.equal(cwdStorage.status, 0);
+  const cwdStoragePayload = JSON.parse(cwdStorage.stdout);
+  assert.equal(cwdStoragePayload.workspaces.length, 1);
+  assert.equal(cwdStoragePayload.workspaces[0].workspaceRoot, workspaceRoot);
+
+  const dryRun = await runCli(["cleanup", "--dry-run", "--json"], { stateDir });
+  assert.equal(dryRun.status, 0);
+  const cleanupPayload = JSON.parse(dryRun.stdout);
+  assert.equal(cleanupPayload.dryRun, true);
+  assert.ok(Number.isInteger(cleanupPayload.beforeBytes));
+
+  const allStorage = await runCli(["storage", "--all", "--json"], { stateDir });
+  assert.equal(allStorage.status, 0);
+  assert.equal(JSON.parse(allStorage.stdout).stateRoot, stateDir);
 });

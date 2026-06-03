@@ -79,8 +79,26 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --cwd "
 
 Use the `--cwd "$WORKSPACE"` form when the original background or waited job was started with that workspace.
 
+Inspect stored job usage without deleting files:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --cwd "$WORKSPACE" --json
+```
+
+Preview cleanup before deleting old terminal job artifacts:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --all --dry-run --json
+```
+
+Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has been inspected first. Do not request unbounded raw logs.
+
 ## Handling Output
 
 For `setup --json`, treat `ready: true` as usable. If `ready: false`, report the missing Claude binary, authentication, or state-directory issue and do not start delegated work.
 
 For `status --json`, report running jobs, the latest finished job, and the relevant job id. For `result --json`, preserve paths, line numbers, findings, changed-file summaries, verification, errors, and residual risk. For `cancel --json`, report whether cancellation was signalled and whether the job is now cancelled.
+
+For `storage --json`, report total state usage and whether cleanup may be needed. For `cleanup --dry-run --json`, report what would be removed before running any destructive cleanup. If `result --json` includes `metadata.storage.truncated` or `metadata.storage.fallback`, tell the user the archived result was shortened to protect disk usage.

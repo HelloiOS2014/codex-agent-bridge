@@ -20,6 +20,11 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 - Reconcile stale queued/running jobs to failed results.
 - For jobs started with `--cwd`, `status`, `result`, and `cancel` must support the same `--cwd`.
 - Keep job state outside the reviewed project. Preserve the state root priority: `CLAUDE_COMPANION_STATE_DIR`, `CODEX_PLUGIN_DATA`, `CLAUDE_PLUGIN_DATA`, then OS temp.
+- Keep stored job artifacts bounded. Result and log caps are archival caps only; do not truncate prompts, review context, or stdout before Claude JSON parsing.
+- Preserve active jobs during cleanup. `queued` and `running` jobs must not be deleted by cleanup.
+- Preserve explicitly selected result jobs while reading results.
+- Keep truncation metadata visible through `metadata.storage`.
+- If storage cleanup behavior changes, update `tests/state.test.mjs`, `tests/storage-prune.test.mjs`, `tests/background.test.mjs`, and `tests/skills.test.mjs`.
 
 ## Documentation Rules
 
@@ -28,8 +33,9 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 - README installation docs must cover both Codex App UI fields and Codex CLI commands.
 - README installation docs must use the main branch as the install ref, not a development branch.
 - README installation docs must cover full marketplace installation and single-plugin sparse installation.
-- README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, and `cancel`.
+- README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, `cancel`, `storage`, and `cleanup`.
 - Skills must tell Codex agents not to add `--timeout` or `--timeout-ms` by default. Expected long-running delegated work should use `--background --json`; timeout flags are only for explicit user time budgets, smoke tests, or deliberate cancellation-style probes.
+- Skills must tell Codex agents to inspect `storage --json` or `cleanup --dry-run --json` when many jobs exist, storage warnings appear, or quota errors block background work. Broad `cleanup --all` must be preceded by `cleanup --all --dry-run --json`.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
 - Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`.
 - Keep each installable plugin's plugin-local marketplace valid for single-plugin sparse installation. For Claude Code Bridge, `plugins/claude-code-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.

@@ -85,4 +85,14 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 
 If the background or waited job was started with `--cwd "$WORKSPACE"`, pass the same `--cwd "$WORKSPACE"` to `status`, `result`, and `cancel`.
 
+When many companion jobs exist, a storage quota error blocks a new background job, or a result includes `metadata.storage.truncated`, inspect storage before starting more delegated work:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --all --dry-run --json
+```
+
+Do not request unbounded raw logs. Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has been inspected first.
+
 Present findings first, preserve file paths and line numbers, and keep the result as review output. If the user wants fixes, ask for or wait for an explicit implementation instruction.

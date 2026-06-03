@@ -477,6 +477,21 @@ function renderFieldLine(label, value) {
   return value ? `${label}: ${value}` : "";
 }
 
+function renderStorageWarning(normalized) {
+  const storage = normalized.metadata?.storage;
+  if (!isPlainObject(storage) || !storage.truncated) {
+    return "";
+  }
+  const fields = Array.isArray(storage.truncatedFields) && storage.truncatedFields.length
+    ? ` Fields: ${storage.truncatedFields.join(", ")}.`
+    : "";
+  const omitted = Number.isFinite(storage.omittedBytes) && storage.omittedBytes > 0
+    ? ` Omitted ${storage.omittedBytes} byte(s).`
+    : "";
+  const fallback = storage.fallback ? " Stored as compact fallback." : "";
+  return `Storage: archived output was truncated.${fields}${omitted}${fallback}`;
+}
+
 function renderLocation(finding) {
   if (!finding.file) {
     return "";
@@ -517,6 +532,7 @@ function renderPlan(normalized) {
     "",
     normalized.status !== "completed" ? renderFieldLine("Status", normalized.status) : "",
     renderFieldLine("Summary", normalized.summary),
+    renderStorageWarning(normalized),
     normalized.sessionId ? `Claude session: \`${normalized.sessionId}\`` : "",
     normalized.error ? `Error: ${normalized.error}` : ""
   ].filter(Boolean);
@@ -548,6 +564,7 @@ function renderReview(normalized) {
     renderFieldLine("Target", normalized.metadata.targetLabel),
     normalized.status !== "completed" ? renderFieldLine("Status", normalized.status) : "",
     normalized.metadata.truncated ? "Note: review context was truncated; omitted content is recorded in metadata." : "",
+    renderStorageWarning(normalized),
     normalized.sessionId ? `Claude session: \`${normalized.sessionId}\`` : "",
     normalized.error ? `Error: ${normalized.error}` : "",
     renderFieldLine("Summary", normalized.summary)
@@ -575,6 +592,7 @@ function renderRescue(normalized) {
     `Mode: ${mode}`,
     normalized.status !== "completed" ? renderFieldLine("Status", normalized.status) : "",
     renderFieldLine("Summary", normalized.summary),
+    renderStorageWarning(normalized),
     normalized.sessionId ? `Claude session: \`${normalized.sessionId}\`` : "",
     normalized.error ? `Error: ${normalized.error}` : "",
     "",
@@ -603,6 +621,7 @@ function renderGeneric(normalized) {
     "",
     normalized.status !== "completed" ? renderFieldLine("Status", normalized.status) : "",
     renderFieldLine("Summary", normalized.summary),
+    renderStorageWarning(normalized),
     normalized.error ? `Error: ${normalized.error}` : "",
     "",
     normalized.text || "(no output)"

@@ -12,6 +12,8 @@ import {
 } from "./jobs.mjs";
 import { terminateProcessTree } from "./process.mjs";
 import { normalizeCompanionResult } from "./render.mjs";
+import { readStoragePolicy } from "./storage-policy.mjs";
+import { pruneStateRoot, pruneWorkspaceState } from "./storage-prune.mjs";
 import {
   appendJobLog,
   listJobFileIds,
@@ -161,6 +163,35 @@ function ensureDirectory(directory, label) {
   return directory;
 }
 
+function storageProtectedIds(values = []) {
+  return new Set(values.filter(Boolean).map((value) => String(value)));
+}
+
+function runStorageMaintenance(workspaceRoot, env, options = {}) {
+  const protectedJobIds = storageProtectedIds(options.protectedJobIds);
+  pruneWorkspaceState(workspaceRoot, {
+    env,
+    protectedJobIds,
+    dryRun: Boolean(options.dryRun)
+  });
+  return pruneStateRoot({
+    env,
+    protectedJobIds,
+    dryRun: Boolean(options.dryRun)
+  });
+}
+
+function ensureStorageQuotaAvailable(workspaceRoot, env) {
+  const report = runStorageMaintenance(workspaceRoot, env);
+  const policy = readStoragePolicy(env);
+  if (report.afterBytes > policy.maxStateBytes) {
+    throw new Error(
+      `Claude Code Bridge storage quota exceeded: ${report.afterBytes} bytes used after cleanup, cap ${policy.maxStateBytes} bytes. Run cleanup --dry-run --json or increase CLAUDE_COMPANION_MAX_STATE_BYTES.`
+    );
+  }
+  return report;
+}
+
 function readCurrentJobOr(job, root, env) {
   try {
     return readJobFile(root, job.id, env);
@@ -181,6 +212,7 @@ export function createQueuedJob(parsed, runtime = {}) {
   const env = runtime.env ?? process.env;
   const workspaceRoot = jobWorkspace(parsed, runtime);
   ensureDirectory(workspaceRoot, "Worker cwd");
+  ensureStorageQuotaAvailable(workspaceRoot, env);
   const job = createJobRecord({
     kind: parsed.command,
     cwd: workspaceRoot,
@@ -289,6 +321,7 @@ export function listJobs(workspaceRoot, env = process.env) {
 export function statusSnapshot(workspaceRoot, options = {}) {
   const env = options.env ?? process.env;
   const jobs = reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env, options);
+  runStorageMaintenance(workspaceRoot, env, { protectedJobIds: options.jobId ? [options.jobId] : [] });
   if (options.jobId) {
     const job = findJob(jobs, options.jobId);
     return {
@@ -317,6 +350,8 @@ export function readSelectedResult(workspaceRoot, options = {}) {
   if (!job) {
     throw new Error("No finished Claude companion job found.");
   }
+
+  runStorageMaintenance(workspaceRoot, env, { protectedJobIds: [job.id] });
 
   let result = null;
   try {
@@ -389,6 +424,7 @@ export async function runStoredJob(jobId, options = {}) {
   const completed = completeJobRecord(current, result);
   upsertJob(root, completed, env);
   appendJobLog(root, completed.id, `worker finished with status ${completed.status}`, env);
+  runStorageMaintenance(root, env, { protectedJobIds: [completed.id] });
   return completed;
 }
 
@@ -418,6 +454,7 @@ export function cancelJob(workspaceRoot, jobId, options = {}) {
   const cancelled = completeJobRecord(job, result);
   upsertJob(root, cancelled, env);
   appendJobLog(root, cancelled.id, `${message} previous pid ${job.pid ?? "none"}`, env);
+  runStorageMaintenance(root, env, { protectedJobIds: [cancelled.id] });
 
   return {
     status: "cancelled",

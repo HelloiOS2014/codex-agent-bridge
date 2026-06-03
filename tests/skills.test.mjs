@@ -49,6 +49,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" status/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" result/);
   assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cancel "\$JOB_ID"/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" storage --json/);
+  assert.match(readme, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" cleanup --dry-run --json/);
+  assert.match(readme, /cleanup --all --dry-run --json/);
   assert.match(readme, /background or waited jobs started with `--cwd <workspace>`/);
   assert.match(readme, /Agents should use background jobs for broad plans/);
   assert.match(readme, /Agents should not add this by default/);
@@ -71,6 +74,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Direct CLI Usage/);
   assert.match(readme, /Background Jobs/);
   assert.match(readme, /State Storage/);
+  assert.match(readme, /CLAUDE_COMPANION_MAX_STATE_BYTES/);
+  assert.match(readme, /metadata\.storage\.truncated/);
+  assert.match(readme, /archival caps, not execution caps/);
   assert.match(readme, /Repository Layout/);
   assert.match(readme, /Limits/);
   assert.match(readme, /Troubleshooting/);
@@ -113,6 +119,8 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /not to add `--timeout` or `--timeout-ms` by default/);
+  assert.match(guide, /metadata\.storage/);
+  assert.match(guide, /cleanup --all --dry-run --json/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /multi-plugin marketplace repository/);
   assert.match(guide, /\.\/plugins\/claude-code-bridge/);
@@ -205,11 +213,16 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /status "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
   assert.match(combined, /result "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
   assert.match(combined, /cancel "\$JOB_ID" --cwd "\$WORKSPACE" --json/);
+  assert.match(combined, /storage --json/);
+  assert.match(combined, /storage --cwd "\$WORKSPACE" --json/);
+  assert.match(combined, /cleanup --dry-run --json/);
+  assert.match(combined, /cleanup --all --dry-run --json/);
   assert.match(combined, /background or waited job was started with `--cwd "\$WORKSPACE"`/);
   assert.match(combined, /--background --json/);
   assert.match(combined, /--wait --json/);
   assert.match(combined, /Do not add `--timeout` or `--timeout-ms` by default/);
   assert.match(combined, /hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only/);
+  assert.match(combined, /Do not request unbounded raw logs/);
 
   const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);

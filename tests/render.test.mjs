@@ -225,6 +225,23 @@ test("renderStoredResult preserves stored rendered text and normalizes json mode
   assert.equal(renderStoredResult(stored, { json: true }).rawOutput, "raw");
 });
 
+test("renderPlanResult surfaces storage truncation metadata in human output", () => {
+  const rendered = renderPlanResult({
+    output: "short archived output",
+    metadata: {
+      storage: {
+        truncated: true,
+        truncatedFields: ["rawOutput", "rendered"],
+        omittedBytes: 42
+      }
+    }
+  });
+
+  assert.match(rendered, /Storage: archived output was truncated/);
+  assert.match(rendered, /rawOutput, rendered/);
+  assert.match(rendered, /42 byte/);
+});
+
 test("normalization and rendering do not mutate input object", () => {
   const input = {
     output: JSON.stringify({

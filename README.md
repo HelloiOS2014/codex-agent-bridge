@@ -137,6 +137,8 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --json --scope wo
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" adversarial-review --json --scope auto --prompt "$FOCUS"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --json --prompt "$PROMPT"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" rescue --write --json --prompt "$PROMPT"
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json
 ```
 
 Common options:
@@ -148,6 +150,9 @@ Common options:
 - `--background`: start a stored job and return immediately.
 - `--wait`: store the job, wait for completion, and return the result.
 - `--timeout-ms <n>` or `--timeout <n>`: optional hard stop for deliberate time-boxed runs. Agents should not add this by default.
+- `storage --json`: report bridge state usage without deleting files.
+- `cleanup --dry-run --json`: preview cleanup before deleting old stored job artifacts.
+- `cleanup --json`: prune old terminal job artifacts while preserving active jobs.
 
 Review options:
 
@@ -188,6 +193,22 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --cwd "
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --cwd "$WORKSPACE" --json
 ```
 
+Inspect state usage:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" storage --cwd "$WORKSPACE" --json
+```
+
+Preview cleanup before broad cleanup:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json
+node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --all --dry-run --json
+```
+
+Agents should run `storage --json` or `cleanup --dry-run --json` when many jobs exist, when a storage warning appears in a result, or when a new background job reports that the storage quota is exceeded. Do not run broad `cleanup --all` without first using `cleanup --all --dry-run --json`.
+
 ## State Storage
 
 Job state is stored outside the reviewed project. State root priority:
@@ -200,6 +221,23 @@ Job state is stored outside the reviewed project. State root priority:
 Each workspace gets a hashed state directory. Job ids are safe filename identifiers and are validated before reading or writing job files.
 
 These state variable names belong to Claude Code Bridge. Additional agents should have their own plugin-specific state names.
+
+Storage is bounded so background jobs cannot grow without limit:
+
+| Setting | Default | Meaning |
+| --- | ---: | --- |
+| `CLAUDE_COMPANION_MAX_JOBS` | `50` | Recent terminal jobs to retain per workspace. |
+| `CLAUDE_COMPANION_MAX_STATE_BYTES` | `536870912` | Total state-root quota, 512 MiB. |
+| `CLAUDE_COMPANION_MAX_LOG_BYTES` | `5242880` | Per-job log cap, 5 MiB. |
+| `CLAUDE_COMPANION_MAX_RESULT_BYTES` | `2097152` | Per-job stored result JSON cap, 2 MiB. |
+| `CLAUDE_COMPANION_MAX_RESULT_TEXT_BYTES` | `1048576` | Per large text field cap, 1 MiB. |
+| `CLAUDE_COMPANION_MAX_JOB_AGE_DAYS` | `7` | Age cap for terminal job artifacts. |
+
+These caps are archival caps, not execution caps. They do not stop Claude Code, do not shrink the prompt or review context sent to Claude, and do not truncate stdout before Claude JSON has been parsed. They only bound what the bridge stores after a result has been normalized.
+
+When stored output exceeds a cap, the bridge writes `metadata.storage.truncated` and records the affected fields and omitted byte count. If a result is still too large after string truncation, the bridge stores a compact fallback result with `metadata.storage.fallback`.
+
+Cleanup never removes `queued` or `running` jobs. Explicit `result <job-id>` reads protect that selected result from the cleanup pass used during result handling.
 
 ## Safety Model
 
@@ -268,6 +306,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 
 - Tests use a deterministic fake Claude fixture; they do not prove real Claude Code long-task behavior.
 - `npm run check:manifest` is a lightweight manifest check. Detailed plugin behavior is covered by `npm test`.
+- Storage caps apply to archived job output. They do not solve unbounded in-memory stdout/stderr capture while Claude is still running.
 
 ## Troubleshooting
 
@@ -276,4 +315,6 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
 - `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.
 - Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
+- Storage quota exceeded: run `node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json`, then use `cleanup --json` or increase `CLAUDE_COMPANION_MAX_STATE_BYTES`.
+- Stored result says `metadata.storage.truncated`: the archived output was shortened to protect disk usage. Increase `CLAUDE_COMPANION_MAX_RESULT_BYTES` or `CLAUDE_COMPANION_MAX_RESULT_TEXT_BYTES` for future runs if you need larger stored output.
 - Local copy is stale: run `codex plugin marketplace upgrade codex-agent-bridge`, then restart Codex.

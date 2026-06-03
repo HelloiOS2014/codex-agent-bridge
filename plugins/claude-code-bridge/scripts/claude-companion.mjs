@@ -14,6 +14,13 @@ import {
 import { getClaudeStatus } from "./lib/claude.mjs";
 import { formatForegroundResult, runForegroundCommand } from "./lib/foreground.mjs";
 import { renderStatus, renderStoredResult } from "./lib/render.mjs";
+import { resolveStateDir, resolveStateRoot } from "./lib/state.mjs";
+import {
+  collectStorageUsage,
+  formatStorageReport,
+  pruneStateRoot,
+  pruneWorkspaceState
+} from "./lib/storage-prune.mjs";
 
 const COMMAND_CONFIG = {
   setup: { booleanOptions: ["json"], valueOptions: [] },
@@ -72,6 +79,8 @@ const COMMAND_CONFIG = {
   status: { booleanOptions: ["all", "json"], valueOptions: ["cwd"] },
   result: { booleanOptions: ["json"], valueOptions: ["cwd"] },
   cancel: { booleanOptions: ["json"], valueOptions: ["cwd"] },
+  storage: { booleanOptions: ["all", "json"], valueOptions: ["cwd"] },
+  cleanup: { booleanOptions: ["all", "dry-run", "json"], valueOptions: ["cwd"] },
   "run-job": { booleanOptions: [], valueOptions: [] }
 };
 
@@ -85,7 +94,9 @@ function usage() {
     "  claude-companion rescue [--background|--wait] [--resume|--fresh] [--write] [prompt...]",
     "  claude-companion status [job-id] [--cwd <workspace>] [--all] [--json]",
     "  claude-companion result [job-id] [--cwd <workspace>] [--json]",
-    "  claude-companion cancel [job-id] [--cwd <workspace>] [--json]"
+    "  claude-companion cancel [job-id] [--cwd <workspace>] [--json]",
+    "  claude-companion storage [--cwd <workspace>] [--all] [--json]",
+    "  claude-companion cleanup [--cwd <workspace>] [--all] [--dry-run] [--json]"
   ].join("\n");
 }
 
@@ -267,6 +278,122 @@ function handleCancel(parsed) {
   console.log(payload.message);
 }
 
+function workspaceDirsFromUsage(usage) {
+  return usage.workspaces
+    .map((workspace) => ({
+      workspaceRoot: workspace.workspaceRoot,
+      stateDir: workspace.stateDir
+    }))
+    .filter((workspace) => workspace.stateDir);
+}
+
+function combineCleanupReports({ stateRoot, dryRun, before, workspaceReports, quotaReport, after }) {
+  const removedFiles = [];
+  const seen = new Set();
+  let removedBytes = 0;
+  const warnings = [];
+  const protectedActiveJobs = new Set();
+  const protectedSelectedJobs = new Set();
+
+  for (const report of [...workspaceReports, quotaReport].filter(Boolean)) {
+    removedBytes += report.removedBytes ?? 0;
+    for (const file of report.removedFiles ?? []) {
+      if (!seen.has(file)) {
+        seen.add(file);
+        removedFiles.push(file);
+      }
+    }
+    for (const warning of report.warnings ?? []) {
+      warnings.push(warning);
+    }
+    for (const jobId of report.protectedActiveJobs ?? []) {
+      protectedActiveJobs.add(jobId);
+    }
+    for (const jobId of report.protectedSelectedJobs ?? []) {
+      protectedSelectedJobs.add(jobId);
+    }
+  }
+
+  return {
+    stateRoot,
+    dryRun,
+    beforeBytes: before.totalBytes,
+    afterBytes: dryRun ? Math.max(0, before.totalBytes - removedBytes) : after.totalBytes,
+    removedBytes,
+    removedFiles,
+    protectedActiveJobs: [...protectedActiveJobs].sort(),
+    protectedSelectedJobs: [...protectedSelectedJobs].sort(),
+    workspaceReports,
+    quotaReport,
+    warnings
+  };
+}
+
+function handleStorage(parsed) {
+  const env = process.env;
+  const stateRoot = resolveStateRoot(env);
+  const usage = scopedStorageUsage(parsed, collectStorageUsage(stateRoot, env), env);
+  if (parsed.options.json) {
+    console.log(JSON.stringify(usage, null, 2));
+    return;
+  }
+  console.log([
+    `State root: ${usage.stateRoot}`,
+    `Total: ${usage.totalBytes} bytes`,
+    `Workspaces: ${usage.workspaces.length}`
+  ].join("\n"));
+}
+
+function scopedStorageUsage(parsed, usage, env) {
+  if (parsed.options.all) {
+    return usage;
+  }
+  const selectedStateDir = resolveStateDir(commandWorkspace(parsed), env);
+  const workspaces = usage.workspaces.filter((workspace) => workspace.stateDir === selectedStateDir);
+  return {
+    ...usage,
+    totalBytes: workspaces.reduce((total, workspace) => total + workspace.bytes, 0),
+    workspaces
+  };
+}
+
+function handleCleanup(parsed) {
+  const env = process.env;
+  const stateRoot = resolveStateRoot(env);
+  const dryRun = Boolean(parsed.options["dry-run"]);
+  const before = collectStorageUsage(stateRoot, env);
+  const workspaceReports = [];
+
+  if (parsed.options.all) {
+    for (const workspace of workspaceDirsFromUsage(before)) {
+      workspaceReports.push(pruneWorkspaceState(workspace.workspaceRoot ?? process.cwd(), {
+        env,
+        stateDir: workspace.stateDir,
+        dryRun
+      }));
+    }
+  } else {
+    workspaceReports.push(pruneWorkspaceState(commandWorkspace(parsed), { env, dryRun }));
+  }
+
+  const quotaReport = pruneStateRoot({ stateRoot, env, dryRun });
+  const after = collectStorageUsage(stateRoot, env);
+  const report = combineCleanupReports({
+    stateRoot,
+    dryRun,
+    before,
+    workspaceReports,
+    quotaReport,
+    after
+  });
+
+  if (parsed.options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  console.log(formatStorageReport(report));
+}
+
 async function main(argv) {
   const command = argv[0] ?? "help";
   if (command === "help" || command === "--help") {
@@ -307,6 +434,14 @@ async function main(argv) {
   }
   if (parsed.command === "cancel") {
     handleCancel(parsed);
+    return;
+  }
+  if (parsed.command === "storage") {
+    handleStorage(parsed);
+    return;
+  }
+  if (parsed.command === "cleanup") {
+    handleCleanup(parsed);
     return;
   }
   if (parsed.command === "run-job") {
