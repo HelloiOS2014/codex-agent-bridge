@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createJobRecord, completeJobRecord, startJobRecord, summarizeStatus } from "../scripts/lib/jobs.mjs";
+import { createJobRecord, completeJobRecord, startJobRecord, summarizeStatus } from "../plugins/claude-companion/scripts/lib/jobs.mjs";
 import { makeTempDir } from "./helpers.mjs";
-import { readJobFile, resolveJobLogFile, resolveJobResultFile, writeJobFile } from "../scripts/lib/state.mjs";
+import { readJobFile, resolveJobLogFile, resolveJobResultFile, writeJobFile } from "../plugins/claude-companion/scripts/lib/state.mjs";
 
 test("createJobRecord creates the required job shape with command args and paths", () => {
   const stateRoot = makeTempDir("job-state-");

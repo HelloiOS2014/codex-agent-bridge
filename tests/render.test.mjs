@@ -7,7 +7,7 @@ import {
   renderRescueResult,
   renderStoredResult,
   renderStatus
-} from "../scripts/lib/render.mjs";
+} from "../plugins/claude-companion/scripts/lib/render.mjs";
 
 test("renderPlanResult preserves raw text output", () => {
   const rendered = renderPlanResult({ output: "Architecture plan", sessionId: "s1" });

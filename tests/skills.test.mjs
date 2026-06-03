@@ -5,12 +5,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const pluginRoot = path.join(root, "plugins", "claude-companion");
 
 const skillFiles = [
-  "skills/claude-plan/SKILL.md",
-  "skills/claude-review/SKILL.md",
-  "skills/claude-rescue/SKILL.md",
-  "skills/claude-result-handling/SKILL.md"
+  "plugins/claude-companion/skills/claude-plan/SKILL.md",
+  "plugins/claude-companion/skills/claude-review/SKILL.md",
+  "plugins/claude-companion/skills/claude-rescue/SKILL.md",
+  "plugins/claude-companion/skills/claude-result-handling/SKILL.md"
 ];
 
 function read(relativePath) {
@@ -22,7 +23,7 @@ function readJson(relativePath) {
 }
 
 test("manifest exposes the skills directory and all expected skills exist", () => {
-  const manifest = readJson(".codex-plugin/plugin.json");
+  const manifest = readJson("plugins/claude-companion/.codex-plugin/plugin.json");
 
   assert.equal(manifest.skills, "./skills/");
   assert.equal(Object.hasOwn(manifest, "mcpServers"), false);
@@ -62,7 +63,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Source: `git@github\.com:HelloiOS2014\/claude_work\.git`/);
   assert.match(readme, /Git ref: `main`/);
   assert.match(readme, /Sparse path: leave empty/);
-  assert.match(readme, /Do not enter `plugins\/codex` or `\.agents\/plugins`/);
+  assert.match(readme, /Do not enter `plugins\/claude-companion`, `plugins\/codex`, or `\.agents\/plugins`/);
   assert.match(readme, /Verify Installation/);
   assert.match(readme, /How Codex Uses It/);
   assert.match(readme, /Direct CLI Usage/);
@@ -78,6 +79,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.doesNotMatch(readme, /Git ref: `codex\/claude-companion-plugin`/);
   assert.match(readme, /Claude Work/);
   assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
+  assert.match(readme, /plugins\/claude-companion/);
   assert.doesNotMatch(readme, /codex plugin marketplace list/);
   assert.doesNotMatch(readme, /node scripts\/install-personal-marketplace\.mjs/);
   assert.doesNotMatch(readme, /~\/\.codex\/plugins\/claude-companion/);
@@ -107,7 +109,8 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /single-plugin repository/);
-  assert.match(guide, /source\.local\.path = "\.\/"/);
+  assert.match(guide, /\.\/plugins\/claude-companion/);
+  assert.doesNotMatch(guide, /source\.local\.path = "\.\/"/);
   assert.match(guide, /Do not document personal marketplace copying/);
   assert.match(guide, /npm test/);
   assert.match(guide, /npm run check:manifest/);
@@ -121,19 +124,21 @@ test("local marketplace exposes the plugin package", () => {
   assert.equal(marketplace.plugins.length, 1);
   assert.equal(marketplace.plugins[0].name, "claude-companion");
   assert.equal(marketplace.plugins[0].source.source, "local");
-  assert.equal(marketplace.plugins[0].source.path, "./");
+  assert.equal(marketplace.plugins[0].source.path, "./plugins/claude-companion");
   assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
   assert.equal(marketplace.plugins[0].category, "Developer Tools");
   assert.equal(marketplace.plugins[0].interface.displayName, "Claude Companion");
 
-  const plugin = readJson(".codex-plugin/plugin.json");
+  const pluginManifestPath = path.join(marketplace.plugins[0].source.path, ".codex-plugin/plugin.json");
+  const plugin = readJson(pluginManifestPath);
+  assert.equal(path.resolve(root, marketplace.plugins[0].source.path), pluginRoot);
   assert.equal(plugin.interface.category, "Developer Tools");
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {
-  const plan = read("skills/claude-plan/SKILL.md");
-  const review = read("skills/claude-review/SKILL.md");
-  const rescue = read("skills/claude-rescue/SKILL.md");
+  const plan = read("plugins/claude-companion/skills/claude-plan/SKILL.md");
+  const review = read("plugins/claude-companion/skills/claude-review/SKILL.md");
+  const rescue = read("plugins/claude-companion/skills/claude-rescue/SKILL.md");
 
   assert.match(plan, /Planning is read-only/);
   assert.doesNotMatch(plan, /--write/);
@@ -184,11 +189,11 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /--background --json/);
   assert.match(combined, /--wait --json/);
 
-  const review = read("skills/claude-review/SKILL.md");
+  const review = read("plugins/claude-companion/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" adversarial-review --json --scope auto --prompt "\$FOCUS"/);
 
-  const rescue = read("skills/claude-rescue/SKILL.md");
+  const rescue = read("plugins/claude-companion/skills/claude-rescue/SKILL.md");
   assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --json --prompt "\$PROMPT"/);
   assert.match(rescue, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" rescue --write --json --prompt "\$PROMPT"/);
 });

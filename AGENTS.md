@@ -4,7 +4,7 @@ This repository builds a Codex plugin that lets Codex call local Claude Code for
 
 ## Core Rules
 
-- Keep the plugin CLI-only. Do not add MCP servers or `mcpServers` to `.codex-plugin/plugin.json`.
+- Keep the plugin CLI-only. Do not add MCP servers or `mcpServers` to `plugins/claude-companion/.codex-plugin/plugin.json`.
 - Skills must invoke the companion through `node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs"`.
 - Do not invoke the companion through a bare relative script path in README, skills, or tests.
 - `plan`, `review`, and `adversarial-review` must remain read-only.
@@ -28,7 +28,7 @@ This repository builds a Codex plugin that lets Codex call local Claude Code for
 - README installation docs must use the main branch as the install ref, not a development branch.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, and `cancel`.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
-- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a single-plugin repository; the marketplace entry should point to this repository's plugin root with `source.local.path = "./"`.
+- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a single-plugin repository, but the marketplace root and plugin root are separate: the marketplace entry must point to `./plugins/claude-companion`, not `./`.
 - Do not document personal marketplace copying or `--sparse .agents/plugins` installation for this repository.
 - Update `tests/skills.test.mjs` when changing README or skill behavior.
 

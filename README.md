@@ -26,7 +26,7 @@ claude auth login
 
 ## Installation
 
-This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json` and points back to this same repository as the plugin source.
+This is a single-plugin repository. Its Codex marketplace file lives at `.agents/plugins/marketplace.json`; the installable plugin package lives at `plugins/claude-companion/`.
 
 ### Codex App
 
@@ -37,7 +37,7 @@ In the Codex app:
 3. Fill the dialog:
    - Source: `git@github.com:HelloiOS2014/claude_work.git`
    - Git ref: `main`
-   - Sparse path: leave empty. Do not enter `plugins/codex` or `.agents/plugins`.
+   - Sparse path: leave empty. Do not enter `plugins/claude-companion`, `plugins/codex`, or `.agents/plugins`.
 4. Click **Add marketplace**.
 5. Choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
 6. Restart Codex or start a new thread so the bundled skills are loaded.
@@ -64,7 +64,7 @@ Refresh the marketplace snapshot:
 codex plugin marketplace upgrade claude-work
 ```
 
-Do not use `--sparse .agents/plugins` for this repository. The marketplace source is `./`, so Codex needs the full repository checkout when it installs **Claude Companion**.
+Do not use `--sparse .agents/plugins` for this repository. Codex needs both `.agents/plugins/marketplace.json` and `plugins/claude-companion/`, so leave sparse path empty.
 
 ### Verify Installation
 
@@ -86,7 +86,7 @@ Expected result: `ready: true`, which means Claude Code is available and authent
 
 ## How Codex Uses It
 
-After the plugin is installed and enabled, Codex loads the skills in [`skills/`](skills/). The skills route natural-language requests to the companion CLI.
+After the plugin is installed and enabled, Codex loads the skills in [`plugins/claude-companion/skills/`](plugins/claude-companion/skills/). The skills route natural-language requests to the companion CLI.
 
 Use these request patterns in Codex:
 
@@ -206,8 +206,8 @@ npm run check:manifest
 Local smoke tests can use the deterministic fake Claude fixture:
 
 ```bash
-export CLAUDE_PLUGIN_ROOT="$PWD"
-export CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_PLUGIN_ROOT/tests/fake-claude-fixture.mjs"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-companion"
+export CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs"
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" plan "plan the plugin"
 ```
@@ -223,18 +223,19 @@ printf "initial\n" > "$tmpdir/README.md"
 git -C "$tmpdir" add README.md
 git -C "$tmpdir" commit -q -m initial
 printf "changed\n" > "$tmpdir/changed.txt"
+export CLAUDE_PLUGIN_ROOT="$PWD/plugins/claude-companion"
 CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
-  node "$PWD/scripts/claude-companion.mjs" review --cwd "$tmpdir" --scope working-tree
+  node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" review --cwd "$tmpdir" --scope working-tree
 ```
 
 ## Repository Layout
 
-- `.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
 - `.agents/plugins/marketplace.json`: local marketplace entry for installing this repository as a Codex plugin source.
-- `skills/`: Codex skill instructions for plan, review, rescue, and result handling.
-- `scripts/claude-companion.mjs`: CLI entrypoint.
-- `scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
-- `schemas/review-output.schema.json`: normalized result schema.
+- `plugins/claude-companion/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
+- `plugins/claude-companion/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
+- `plugins/claude-companion/scripts/claude-companion.mjs`: CLI entrypoint.
+- `plugins/claude-companion/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
+- `plugins/claude-companion/schemas/review-output.schema.json`: normalized result schema.
 - `tests/`: fake Claude fixture and automated tests.
 - `AGENTS.md`: maintenance rules for future agents.
 

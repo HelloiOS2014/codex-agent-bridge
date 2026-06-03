@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { makeTempDir, makeTempGitRepo, runCli } from "./helpers.mjs";
-import { runForegroundCommand } from "../scripts/lib/foreground.mjs";
+import { runForegroundCommand } from "../plugins/claude-companion/scripts/lib/foreground.mjs";
 
 function writeCapturingClaudeFixture() {
   const dir = makeTempDir("claude-companion-foreground-fixture-");
