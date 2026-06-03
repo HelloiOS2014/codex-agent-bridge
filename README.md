@@ -181,6 +181,7 @@ Common options:
 - `--json`: return machine-readable output for Codex to parse.
 - `--prompt <text>`: pass the prompt explicitly.
 - `--prompt-file <file>`: read the prompt from a file relative to the command workspace.
+- `--model <model>`: pass a user-requested Claude Code model through to Claude. The value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
 - `--background`: start a stored job and return immediately.
 - `--wait`: store the job, wait for completion, and return the result.
 - `--timeout-ms <n>` or `--timeout <n>`: optional hard stop for deliberate time-boxed runs. Agents should not add this by default.
@@ -347,7 +348,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 - Plugin does not appear in the Codex app: restart Codex and choose the **Agent Bridge** source. If you added an older marketplace, remove `codex-agent-bridge`, `claude-work`, or `claude-companion-local` and add the current main-branch marketplace again.
 - CLI-managed marketplace is stale: run `codex plugin marketplace upgrade codex-agent-bridge`.
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
-- `setup --json` returns `ready: false`: if the binary is missing, the agent should check common local install locations and retry once with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN`. Do not ask users to edit shell PATH. If no binary is found, install Claude Code; if authentication is missing, run `claude auth login`.
+- `setup --json` returns `ready: false`: if the binary is missing, the agent should check common local install locations and retry once with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN`. Do not ask users to edit shell PATH. If no binary is found, report the setup blocker; if authentication is missing, run `claude auth login`.
 - Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
 - Storage quota exceeded: run `node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json`, then use `cleanup --json` or increase `CLAUDE_COMPANION_MAX_STATE_BYTES`.
 - Stored result says `metadata.storage.truncated`: the archived output was shortened to protect disk usage. Increase `CLAUDE_COMPANION_MAX_RESULT_BYTES` or `CLAUDE_COMPANION_MAX_RESULT_TEXT_BYTES` for future runs if you need larger stored output.

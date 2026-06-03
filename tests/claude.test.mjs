@@ -78,6 +78,16 @@ test("buildToolArgs maps safe profiles without bypass permissions", () => {
   }
 });
 
+test("buildClaudeArgs passes user model and otherwise uses Claude Code default", () => {
+  for (const model of ["opus", "sonnet"]) {
+    assert.deepEqual(
+      buildClaudeArgs({ prompt: "inspect", model }).slice(-2),
+      ["--model", model]
+    );
+  }
+  assert.equal(buildClaudeArgs({ prompt: "inspect" }).includes("--model"), false);
+});
+
 test("buildClaudeArgs rejects unknown profiles and dangerous extra args", () => {
   assert.throws(
     () => buildClaudeArgs({ prompt: "hello", toolProfile: "admin" }),

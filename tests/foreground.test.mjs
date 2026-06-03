@@ -46,8 +46,25 @@ test("plan prompt asks for a full read-only plan and uses read profile", async (
   assert.match(result.rendered, /Do not edit files/i);
   assert.match(result.rendered, /design this/);
   assert.match(result.rendered, /"--permission-mode","plan"/);
+  assert.match(result.rendered, /"--model","sonnet"/);
   assert.match(result.rendered, /"--tools","Read,Glob,Grep"/);
   assert.doesNotMatch(result.rendered, /Bash|Edit,MultiEdit,Write/);
+});
+
+test("foreground commands omit --model when the user did not specify one", async () => {
+  const claudeBin = writeCapturingClaudeFixture();
+
+  const result = await runForegroundCommand({
+    command: "rescue",
+    options: {},
+    positionals: ["diagnose", "failure"]
+  }, {
+    cwd: process.cwd(),
+    env: { ...process.env, CLAUDE_COMPANION_CLAUDE_BIN: claudeBin }
+  });
+
+  assert.equal(result.status, "completed");
+  assert.doesNotMatch(result.rendered, /"--model"/);
 });
 
 test("review prompt includes git context and uses no Claude tools", async () => {

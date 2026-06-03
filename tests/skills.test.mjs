@@ -55,6 +55,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /background or waited jobs started with `--cwd <workspace>`/);
   assert.match(readme, /Agents should use background jobs for broad plans/);
   assert.match(readme, /Agents should not add this by default/);
+  assert.match(readme, /`--model <model>`: pass a user-requested Claude Code model through to Claude/);
+  assert.match(readme, /short alias such as `opus` or `sonnet`, or a full model name/);
+  assert.match(readme, /If the user does not specify a model, omit `--model` so Claude Code uses its own default model/);
 
   for (const skill of ["claude-plan", "claude-review", "claude-rescue", "claude-result-handling"]) {
     assert.match(readme, new RegExp(`\\b${skill}\\b`));
@@ -125,6 +128,9 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /not to add `--timeout` or `--timeout-ms` by default/);
+  assert.match(guide, /If the user specifies a Claude Code model, pass it with `--model`/);
+  assert.match(guide, /Short aliases such as `opus` or `sonnet` must be passed through as model values/);
+  assert.match(guide, /If the user does not specify a model, omit `--model`/);
   assert.match(guide, /metadata\.storage/);
   assert.match(guide, /cleanup --all --dry-run --json/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
@@ -198,6 +204,15 @@ test("skill docs include critical safety exclusions", () => {
   assert.match(combined, /--dangerously-bypass-approvals-and-sandbox/);
   assert.match(combined, /--permission-mode bypassPermissions/);
   assert.match(combined, /broad shell or git write tools in read mode/);
+});
+
+test("skill docs document Claude model selection policy", () => {
+  const combined = skillFiles.map(read).join("\n");
+
+  assert.match(combined, /If the user explicitly requests a Claude Code model, pass it with `--model <model>`/);
+  assert.match(combined, /The model value may be a short alias such as `opus` or `sonnet`, or a full model name/);
+  assert.match(combined, /If the user does not specify a model, omit `--model` so Claude Code uses its own default model/);
+  assert.doesNotMatch(combined, /CLAUDE_COMPANION_DEFAULT_MODEL/);
 });
 
 test("skill docs include when-not-to-use guidance", () => {

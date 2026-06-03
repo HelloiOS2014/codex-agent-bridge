@@ -25,6 +25,7 @@ Use this skill to delegate read-only review to Claude Code through the Claude Co
 - Normal review and adversarial review are read-only.
 - Do not fix issues, apply patches, create commits, or continue into implementation in the same delegated review.
 - Do not automatically apply Claude output, stage files, create commits, or push changes from review flows.
+- If the user explicitly requests a Claude Code model, pass it with `--model <model>`. The model value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
 - Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
 - For broad branch reviews, large diffs, or deep adversarial review, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.

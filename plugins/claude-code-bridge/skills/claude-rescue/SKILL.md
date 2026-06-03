@@ -26,6 +26,7 @@ Use this skill to delegate investigation or implementation rescue work to Claude
 - Add `--write` only when write access was explicitly requested by the user.
 - Do not automatically apply patch text returned by Claude; only `rescue --write` grants Claude a scoped write run after explicit user request.
 - Do not stage files, create commits, or push changes from rescue flows.
+- If the user explicitly requests a Claude Code model, pass it with `--model <model>`. The model value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
 - Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
 - For long debugging, reproduction, or implementation rescue, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
