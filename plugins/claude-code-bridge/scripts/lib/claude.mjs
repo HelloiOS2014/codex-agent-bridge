@@ -25,7 +25,41 @@ const SAFE_EXTRA_VALUE_FLAGS = new Set([
 ]);
 
 export function resolveClaudeBin(options = {}) {
-  return options.claudeBin || process.env.CLAUDE_COMPANION_CLAUDE_BIN || "claude";
+  if (options.claudeBin) {
+    return options.claudeBin;
+  }
+  const env = options.env ?? process.env;
+  if (env.CLAUDE_COMPANION_CLAUDE_BIN) {
+    return env.CLAUDE_COMPANION_CLAUDE_BIN;
+  }
+  return discoverClaudeBin(env) ?? "claude";
+}
+
+function discoverClaudeBin(env = process.env) {
+  return commonClaudeBinCandidates(env).find((candidate) => {
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }) ?? null;
+}
+
+function commonClaudeBinCandidates(env = process.env) {
+  const candidates = [];
+  const home = env.HOME || env.USERPROFILE;
+  if (home) {
+    candidates.push(
+      path.join(home, ".local", "bin", "claude"),
+      path.join(home, ".claude", "local", "claude")
+    );
+  }
+  candidates.push(
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude"
+  );
+  return [...new Set(candidates)];
 }
 
 export function buildToolArgs(profile = "none") {

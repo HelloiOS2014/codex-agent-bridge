@@ -39,7 +39,7 @@ Before the first delegation in a workspace, or when Claude setup may have change
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json
 ```
 
-If setup is not ready, tell the user what is missing, such as installing Claude Code or running `claude auth login`.
+If setup reports a missing Claude binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/claude`, `$HOME/.claude/local/claude`, `/opt/homebrew/bin/claude`, and `/usr/local/bin/claude`; when one exists, rerun the companion with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_BIN"` for that call. If no binary is found, or authentication is missing, report that blocker instead of delegating.
 
 ## Commands
 

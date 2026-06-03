@@ -9,7 +9,7 @@ The shipped plugin is **Claude Code Bridge**. It is skill-driven and CLI-only, a
 - Node.js 18.18 or newer.
 - Local Claude Code CLI installed and authenticated for the current Claude adapter.
 - Codex must expose the plugin root as `CLAUDE_PLUGIN_ROOT` when skills call the companion CLI.
-- Optional: set `CLAUDE_COMPANION_CLAUDE_BIN` if `claude` is not on `PATH`.
+- The companion auto-discovers common local Claude installs. Codex agents may use command-scoped `CLAUDE_COMPANION_CLAUDE_BIN` after locating a binary, but should not ask users to edit shell PATH.
 
 Verify Claude Code before installing the plugin:
 
@@ -347,7 +347,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 - Plugin does not appear in the Codex app: restart Codex and choose the **Agent Bridge** source. If you added an older marketplace, remove `codex-agent-bridge`, `claude-work`, or `claude-companion-local` and add the current main-branch marketplace again.
 - CLI-managed marketplace is stale: run `codex plugin marketplace upgrade codex-agent-bridge`.
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
-- `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.
+- `setup --json` returns `ready: false`: if the binary is missing, the agent should check common local install locations and retry once with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN`. Do not ask users to edit shell PATH. If no binary is found, install Claude Code; if authentication is missing, run `claude auth login`.
 - Background job cannot be found: if the job was started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, or `cancel`.
 - Storage quota exceeded: run `node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cleanup --dry-run --json`, then use `cleanup --json` or increase `CLAUDE_COMPANION_MAX_STATE_BYTES`.
 - Stored result says `metadata.storage.truncated`: the archived output was shortened to protect disk usage. Increase `CLAUDE_COMPANION_MAX_RESULT_BYTES` or `CLAUDE_COMPANION_MAX_RESULT_TEXT_BYTES` for future runs if you need larger stored output.

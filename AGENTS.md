@@ -35,6 +35,7 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 - README installation docs must cover full marketplace installation and single-plugin sparse installation.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, `cancel`, `storage`, and `cleanup`.
 - Skills must tell Codex agents not to add `--timeout` or `--timeout-ms` by default. Expected long-running delegated work should use `--background --json`; timeout flags are only for explicit user time budgets, smoke tests, or deliberate cancellation-style probes.
+- Skills must tell Codex agents: Do not ask users to edit shell PATH. If setup reports a missing Claude binary, agents should check common local install locations and use command-scoped `CLAUDE_COMPANION_CLAUDE_BIN` for the retry.
 - Skills must tell Codex agents to inspect `storage --json` or `cleanup --dry-run --json` when many jobs exist, storage warnings appear, or quota errors block background work. Broad `cleanup --all` must be preceded by `cleanup --all --dry-run --json`.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
 - Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`.

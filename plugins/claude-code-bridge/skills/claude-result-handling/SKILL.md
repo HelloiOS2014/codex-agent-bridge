@@ -97,7 +97,7 @@ Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has bee
 
 ## Handling Output
 
-For `setup --json`, treat `ready: true` as usable. If `ready: false`, report the missing Claude binary, authentication, or state-directory issue and do not start delegated work.
+For `setup --json`, treat `ready: true` as usable. If setup reports a missing Claude binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/claude`, `$HOME/.claude/local/claude`, `/opt/homebrew/bin/claude`, and `/usr/local/bin/claude`; when one exists, rerun the companion with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_BIN"` for that call. If no binary is found, authentication is missing, or the state directory is unusable, report that blocker and do not start delegated work.
 
 For `status --json`, report running jobs, the latest finished job, and the relevant job id. For `result --json`, preserve paths, line numbers, findings, changed-file summaries, verification, errors, and residual risk. For `cancel --json`, report whether cancellation was signalled and whether the job is now cancelled.
 

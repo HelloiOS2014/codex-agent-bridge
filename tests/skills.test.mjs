@@ -209,6 +209,24 @@ test("skill docs include when-not-to-use guidance", () => {
   assert.match(combined, /secrets, credentials, private keys, tokens/i);
 });
 
+test("skill docs handle missing Claude binary without asking users to configure PATH", () => {
+  const combined = skillFiles.map(read).join("\n");
+  const readme = read("README.md");
+  const guide = read("AGENTS.md");
+
+  assert.match(combined, /CLAUDE_COMPANION_CLAUDE_BIN/);
+  assert.match(combined, /command-scoped/i);
+  assert.match(combined, /do not ask the user to edit shell PATH/i);
+  assert.match(combined, /common local install locations/);
+  assert.doesNotMatch(combined, /ask the user to configure PATH|tell the user to edit shell PATH/i);
+
+  assert.match(readme, /Do not ask users to edit shell PATH/);
+  assert.match(readme, /CLAUDE_COMPANION_CLAUDE_BIN/);
+  assert.doesNotMatch(readme, /set `CLAUDE_COMPANION_CLAUDE_BIN` if `claude` is not on `PATH`/);
+
+  assert.match(guide, /Do not ask users to edit shell PATH/);
+});
+
 test("skill docs include setup, status, result, cancel, background, and wait commands", () => {
   const combined = skillFiles.map(read).join("\n");
 

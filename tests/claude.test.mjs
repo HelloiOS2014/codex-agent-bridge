@@ -35,7 +35,17 @@ test("resolveClaudeBin uses option, env, then default", (t) => {
   assert.equal(resolveClaudeBin(), "/tmp/env-claude");
 
   delete process.env.CLAUDE_COMPANION_CLAUDE_BIN;
-  assert.equal(resolveClaudeBin(), "claude");
+  assert.equal(resolveClaudeBin({ env: { HOME: makeTempDir("claude-companion-empty-home-") } }), "claude");
+});
+
+test("resolveClaudeBin discovers common user-local Claude installs", () => {
+  const home = makeTempDir("claude-companion-home-");
+  const localBin = path.join(home, ".local", "bin");
+  const claudeBin = path.join(localBin, "claude");
+  fs.mkdirSync(localBin, { recursive: true });
+  fs.writeFileSync(claudeBin, "#!/bin/sh\nexit 0\n", { encoding: "utf8", mode: 0o755 });
+
+  assert.equal(resolveClaudeBin({ env: { HOME: home } }), claudeBin);
 });
 
 test("getClaudeStatus reports missing binary", async () => {
