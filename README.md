@@ -36,7 +36,7 @@ In the Codex app:
 2. Click **Create** and choose **Add plugin marketplace**.
 3. Fill the dialog:
    - Source: `git@github.com:HelloiOS2014/claude_work.git`
-   - Git ref: `codex/claude-companion-plugin`
+   - Git ref: `main`
    - Sparse path: leave empty. Do not enter `plugins/codex` or `.agents/plugins`.
 4. Click **Add marketplace**.
 5. Choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
@@ -45,16 +45,17 @@ In the Codex app:
 ### Codex CLI
 
 ```bash
-codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref codex/claude-companion-plugin
+codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref main
 ```
 
 Then open Codex **Plugins**, choose the **Claude Work** source, open **Claude Companion**, and select **Add to Codex**.
 
-If you previously added the old `claude-companion-local` marketplace from an earlier README, remove it and add the current marketplace again:
+If you previously added the old feature-branch marketplace from an earlier README, remove the old entry and add the main-branch marketplace again:
 
 ```bash
+codex plugin marketplace remove claude-work
 codex plugin marketplace remove claude-companion-local
-codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref codex/claude-companion-plugin
+codex plugin marketplace add git@github.com:HelloiOS2014/claude_work.git --ref main
 ```
 
 Refresh the marketplace snapshot:
@@ -244,7 +245,7 @@ CLAUDE_COMPANION_CLAUDE_BIN="$PWD/tests/fake-claude-fixture.mjs" \
 
 ## Troubleshooting
 
-- Plugin does not appear in the Codex app: restart Codex and choose the **Claude Work** source. If you added an older marketplace, remove `claude-companion-local` and add the current marketplace again.
+- Plugin does not appear in the Codex app: restart Codex and choose the **Claude Work** source. If you added an older marketplace, remove `claude-work` or `claude-companion-local` and add the current main-branch marketplace again.
 - CLI-managed marketplace is stale: run `codex plugin marketplace upgrade claude-work`.
 - Skills do not trigger: start a new thread and explicitly mention the plugin or skill. In the Codex app, type `@`; in CLI/IDE, use `/skills` or `$` skill invocation.
 - `setup --json` returns `ready: false`: install Claude Code, run `claude auth login`, or set `CLAUDE_COMPANION_CLAUDE_BIN` to the Claude binary.

@@ -60,7 +60,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Codex CLI/);
   assert.match(readme, /Add plugin marketplace/);
   assert.match(readme, /Source: `git@github\.com:HelloiOS2014\/claude_work\.git`/);
-  assert.match(readme, /Git ref: `codex\/claude-companion-plugin`/);
+  assert.match(readme, /Git ref: `main`/);
   assert.match(readme, /Sparse path: leave empty/);
   assert.match(readme, /Do not enter `plugins\/codex` or `\.agents\/plugins`/);
   assert.match(readme, /Verify Installation/);
@@ -71,9 +71,11 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Repository Layout/);
   assert.match(readme, /Limits/);
   assert.match(readme, /Troubleshooting/);
-  assert.match(readme, /codex plugin marketplace add git@github\.com:HelloiOS2014\/claude_work\.git --ref codex\/claude-companion-plugin/);
+  assert.match(readme, /codex plugin marketplace add git@github\.com:HelloiOS2014\/claude_work\.git --ref main/);
   assert.match(readme, /codex plugin marketplace upgrade claude-work/);
+  assert.match(readme, /codex plugin marketplace remove claude-work/);
   assert.match(readme, /codex plugin marketplace remove claude-companion-local/);
+  assert.doesNotMatch(readme, /Git ref: `codex\/claude-companion-plugin`/);
   assert.match(readme, /Claude Work/);
   assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
   assert.doesNotMatch(readme, /codex plugin marketplace list/);
@@ -102,6 +104,7 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Documentation Rules/);
   assert.match(guide, /README must document installation/);
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
+  assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /single-plugin repository/);
   assert.match(guide, /source\.local\.path = "\.\/"/);
