@@ -201,13 +201,27 @@ test("renderRescueResult distinguishes write mode and touched files", () => {
 
 test("renderStatus creates compact table", () => {
   const rendered = renderStatus({
-    running: [{ id: "job-1", kind: "plan", status: "running", phase: "starting" }],
+    running: [{
+      id: "job-1",
+      kind: "plan",
+      status: "running",
+      phase: "running",
+      runtimeMs: 1500,
+      idleMs: 250,
+      recentLog: [{ message: "worker started pid 123" }]
+    }],
     latestFinished: null,
     recent: []
   });
 
   assert.match(rendered, /job-1/);
   assert.match(rendered, /running/);
+  assert.match(rendered, /Runtime/);
+  assert.match(rendered, /Idle/);
+  assert.match(rendered, /Recent Activity/);
+  assert.match(rendered, /1\.5s/);
+  assert.match(rendered, /250ms/);
+  assert.match(rendered, /worker started pid 123/);
 });
 
 test("renderStoredResult preserves stored rendered text and normalizes json mode", () => {

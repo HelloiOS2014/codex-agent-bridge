@@ -285,6 +285,47 @@ test("status keeps queued jobs valid while reconciling stale running jobs", asyn
   assert.equal(fs.existsSync(job.resultPath), false);
 });
 
+test("status json includes bounded recent activity for active jobs", async () => {
+  const stateDir = makeTempDir("background-activity-state-");
+  const workspaceRoot = makeTempDir("background-activity-workspace-");
+  const env = { CLAUDE_COMPANION_STATE_DIR: stateDir };
+  const active = {
+    ...startJobRecord(createJobRecord({
+      kind: "plan",
+      cwd: workspaceRoot,
+      workspaceRoot,
+      command: "plan",
+      args: ["activity"],
+      env
+    }), process.pid),
+    phase: "starting"
+  };
+  persistManualJob(workspaceRoot, active, env);
+  appendJobLog(workspaceRoot, active.id, "queued plan activity", env);
+  appendJobLog(workspaceRoot, active.id, "spawned worker pid 99", env);
+  appendJobLog(workspaceRoot, active.id, "worker started pid 123", env);
+  appendJobLog(workspaceRoot, active.id, "claude running", env);
+
+  const status = await runCli(["status", active.id, "--cwd", workspaceRoot, "--json"], { stateDir });
+
+  assert.equal(status.status, 0);
+  assert.equal(status.stderr, "");
+  const snapshot = JSON.parse(status.stdout);
+  const job = snapshot.job;
+  assert.equal(job.status, "running");
+  assert.equal(job.phase, "running");
+  assert.match(job.lastActivityAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.ok(Number.isInteger(job.runtimeMs));
+  assert.ok(Number.isInteger(job.idleMs));
+  assert.ok(job.runtimeMs >= 0);
+  assert.ok(job.idleMs >= 0);
+  assert.deepEqual(job.recentLog.map((entry) => entry.message), [
+    "spawned worker pid 99",
+    "worker started pid 123",
+    "claude running"
+  ]);
+});
+
 test("runStoredJob returns terminal jobs without re-executing them", async () => {
   const stateDir = makeTempDir("background-terminal-state-");
   const workspaceRoot = makeTempDir("background-terminal-workspace-");
@@ -551,6 +592,7 @@ test("background jobs launched with --cwd can be managed with status result and 
   });
   assert.equal(slowLaunch.status, 0);
   const slowJobId = JSON.parse(slowLaunch.stdout).job.id;
+  await waitForJobStatus(slowJobId, "running", { cwd: workspaceRoot, stateDir });
 
   const cancel = await runCli(["cancel", slowJobId, "--cwd", workspaceRoot, "--json"], { stateDir });
   assert.equal(cancel.status, 0);

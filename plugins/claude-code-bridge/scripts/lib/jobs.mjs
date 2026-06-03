@@ -52,7 +52,7 @@ export function createJobRecord({
 }
 
 export function startJobRecord(job, pid) {
-  return { ...job, status: "running", phase: "starting", pid, startedAt: nowIso() };
+  return { ...job, status: "running", phase: "running", pid, startedAt: nowIso() };
 }
 
 export function completeJobRecord(job, result) {

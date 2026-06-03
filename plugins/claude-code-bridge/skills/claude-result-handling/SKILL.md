@@ -57,6 +57,8 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" status "$JOB_ID" --cwd "$WORKSPACE" --json
 ```
 
+`status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries. Use these fields to report whether a long-running job has started, whether a safe process id is still known, how long it has been active, and when the bridge last recorded activity.
+
 Latest finished result:
 
 ```bash

@@ -19,6 +19,7 @@ import {
   listJobFileIds,
   readJobFile,
   readJobResultFile,
+  resolveJobLogFile,
   readState,
   upsertJob,
   validateJobId,
@@ -27,6 +28,7 @@ import {
 
 const WORKER_OMITTED_OPTIONS = new Set(["background", "wait", "json", "cwd"]);
 const DEFAULT_QUEUED_STALE_MS = 30_000;
+const DEFAULT_RECENT_LOG_LINES = 3;
 
 function jobWorkspace(parsed, runtime = {}) {
   const baseCwd = runtime.cwd ?? process.cwd();
@@ -54,6 +56,77 @@ function jobRoot(job, fallbackRoot) {
 
 function sortedJobs(jobs) {
   return [...jobs].sort(compareJobsByLatestActivity);
+}
+
+function parseJobLogLine(line) {
+  const match = String(line).match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    timestamp: match[1],
+    message: match[2]
+  };
+}
+
+function readRecentJobLog(job, workspaceRoot, env, limit = DEFAULT_RECENT_LOG_LINES) {
+  const root = jobRoot(job, workspaceRoot);
+  const logPath = job.logPath ?? resolveJobLogFile(root, job.id, env);
+  let text = "";
+  try {
+    text = fs.readFileSync(logPath, "utf8");
+  } catch {
+    return [];
+  }
+  return text
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(parseJobLogLine)
+    .filter(Boolean)
+    .slice(-limit);
+}
+
+function parseTimeMs(value) {
+  const time = Date.parse(value ?? "");
+  return Number.isFinite(time) ? time : null;
+}
+
+function elapsedMs(start, end = Date.now()) {
+  const startMs = parseTimeMs(start);
+  if (startMs === null) {
+    return null;
+  }
+  const endMs = typeof end === "number" ? end : parseTimeMs(end);
+  if (endMs === null) {
+    return null;
+  }
+  return Math.max(0, endMs - startMs);
+}
+
+function statusActivity(job, recentLog) {
+  return recentLog.at(-1)?.timestamp
+    ?? job.endedAt
+    ?? job.startedAt
+    ?? job.createdAt
+    ?? null;
+}
+
+function annotateJobForStatus(job, workspaceRoot, env, options = {}) {
+  const recentLog = readRecentJobLog(job, workspaceRoot, env, options.recentLogLimit ?? DEFAULT_RECENT_LOG_LINES);
+  const lastActivityAt = statusActivity(job, recentLog);
+  const phase = job.status === "running" && job.phase === "starting" ? "running" : job.phase;
+  return {
+    ...job,
+    phase,
+    lastActivityAt,
+    runtimeMs: job.startedAt ? elapsedMs(job.startedAt, job.endedAt ?? Date.now()) : 0,
+    idleMs: lastActivityAt ? elapsedMs(lastActivityAt) : null,
+    recentLog
+  };
+}
+
+function annotateJobsForStatus(jobs, workspaceRoot, env, options = {}) {
+  return jobs.map((job) => annotateJobForStatus(job, workspaceRoot, env, options));
 }
 
 function messageFromError(error) {
@@ -320,8 +393,9 @@ export function listJobs(workspaceRoot, env = process.env) {
 
 export function statusSnapshot(workspaceRoot, options = {}) {
   const env = options.env ?? process.env;
-  const jobs = reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env, options);
+  const reconciledJobs = reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env, options);
   runStorageMaintenance(workspaceRoot, env, { protectedJobIds: options.jobId ? [options.jobId] : [] });
+  const jobs = annotateJobsForStatus(reconciledJobs, workspaceRoot, env, options);
   if (options.jobId) {
     const job = findJob(jobs, options.jobId);
     return {

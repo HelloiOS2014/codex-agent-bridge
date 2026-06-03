@@ -220,6 +220,8 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" result "$JOB_ID" --json
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" cancel "$JOB_ID" --json
 ```
 
+`status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries so callers can tell whether a long-running job has started, is still active, and when it last recorded bridge activity.
+
 For background or waited jobs started with `--cwd <workspace>`, pass the same `--cwd` to `status`, `result`, and `cancel`:
 
 ```bash

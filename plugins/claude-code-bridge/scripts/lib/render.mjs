@@ -97,6 +97,32 @@ function compactString(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function formatDurationMs(value) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+  const ms = Math.max(0, Math.round(value));
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  if (ms < 60_000) {
+    const seconds = ms / 1000;
+    return `${Number.isInteger(seconds) ? seconds.toFixed(0) : seconds.toFixed(1)}s`;
+  }
+  const minutes = ms / 60_000;
+  if (minutes < 60) {
+    return `${Number.isInteger(minutes) ? minutes.toFixed(0) : minutes.toFixed(1)}m`;
+  }
+  const hours = minutes / 60;
+  return `${Number.isInteger(hours) ? hours.toFixed(0) : hours.toFixed(1)}h`;
+}
+
+function latestActivityMessage(job) {
+  const recentLog = Array.isArray(job?.recentLog) ? job.recentLog : [];
+  const latest = recentLog.at(-1);
+  return compactString(latest?.message ?? latest ?? "");
+}
+
 function sanitizeSingleLine(value, fallback = "") {
   const sanitized = compactString(value)
     .replace(/[\r\n\t]+/g, " ")
@@ -756,7 +782,7 @@ export function renderStatus(snapshot = {}, options = {}) {
   if (options.json) {
     return payload;
   }
-  const rows = [["Job", "Kind", "Status", "Phase"]];
+  const rows = [["Job", "Kind", "Status", "Phase", "Runtime", "Idle", "Recent Activity"]];
   const seen = new Set();
   for (const job of [
     ...asArray(payload.running),
@@ -771,7 +797,10 @@ export function renderStatus(snapshot = {}, options = {}) {
       compactString(job.id),
       compactString(job.kind),
       compactString(job.status),
-      compactString(job.phase)
+      compactString(job.phase),
+      formatDurationMs(job.runtimeMs),
+      formatDurationMs(job.idleMs),
+      latestActivityMessage(job)
     ]);
   }
   if (rows.length === 1) {

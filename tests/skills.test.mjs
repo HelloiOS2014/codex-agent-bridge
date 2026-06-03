@@ -83,6 +83,7 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Direct CLI Usage/);
   assert.match(readme, /Background Jobs/);
   assert.match(readme, /State Storage/);
+  assert.match(readme, /status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries/);
   assert.match(readme, /CLAUDE_COMPANION_MAX_STATE_BYTES/);
   assert.match(readme, /metadata\.storage\.truncated/);
   assert.match(readme, /archival caps, not execution caps/);
@@ -262,6 +263,7 @@ test("skill docs include setup, status, result, cancel, background, and wait com
   assert.match(combined, /Do not add `--timeout` or `--timeout-ms` by default/);
   assert.match(combined, /hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only/);
   assert.match(combined, /Do not request unbounded raw logs/);
+  assert.match(combined, /status --json` includes `phase`, `pid`, `runtimeMs`, `idleMs`, `lastActivityAt`, and bounded `recentLog` entries/);
 
   const review = read("plugins/claude-code-bridge/skills/claude-review/SKILL.md");
   assert.match(review, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs" review --json --scope working-tree/);
