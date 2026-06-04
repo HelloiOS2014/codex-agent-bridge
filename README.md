@@ -35,10 +35,7 @@ agy --version
 
 ## Installation
 
-This repository supports two installation shapes:
-
-- **Full marketplace**: add the root repository, then choose one or more plugins from the Agent Bridge source.
-- **Single plugin**: add only `plugins/claude-code-bridge` or `plugins/antigravity-bridge` with sparse checkout. Each plugin directory carries its own marketplace file pointing at `./`.
+This repository has exactly one marketplace: the root Agent Bridge marketplace at `.agents/plugins/marketplace.json`. Add the root repository, then choose one or more plugins from the Agent Bridge source.
 
 ### Codex App
 
@@ -49,26 +46,10 @@ In the Codex app:
 3. Fill the dialog for the full Agent Bridge marketplace:
    - Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
    - Git ref: `main`
-   - Sparse path: leave empty for the full Agent Bridge marketplace.
+   - Sparse path: leave empty.
 4. Click **Add marketplace**.
 5. Choose the **Agent Bridge** source, open **Claude Code Bridge** or **Antigravity Bridge**, and select **Add to Codex**.
 6. Restart Codex or start a new thread so the bundled skills are loaded.
-
-To install only the Claude plugin from the Codex app, use the same dialog with:
-
-- Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
-- Git ref: `main`
-- Sparse path: `plugins/claude-code-bridge`
-
-Then choose the **Claude Code Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
-
-To install only the Antigravity plugin from the Codex app, use:
-
-- Source: `git@github.com:HelloiOS2014/codex-agent-bridge.git`
-- Git ref: `main`
-- Sparse path: `plugins/antigravity-bridge`
-
-Then choose the **Antigravity Bridge** source, open **Antigravity Bridge**, and select **Add to Codex**.
 
 ### Codex CLI
 
@@ -77,22 +58,6 @@ codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git 
 ```
 
 This registers the marketplace only. The current Codex CLI does not install or enable an individual plugin from a marketplace. After adding the marketplace, open Codex **Plugins**, choose the **Agent Bridge** source, open **Claude Code Bridge** or **Antigravity Bridge**, and select **Add to Codex**.
-
-For single-plugin installation:
-
-```bash
-codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main --sparse plugins/claude-code-bridge
-```
-
-Then open Codex **Plugins**, choose the **Claude Code Bridge** source, open **Claude Code Bridge**, and select **Add to Codex**.
-
-For Antigravity single-plugin installation:
-
-```bash
-codex plugin marketplace add git@github.com:HelloiOS2014/codex-agent-bridge.git --ref main --sparse plugins/antigravity-bridge
-```
-
-Then open Codex **Plugins**, choose the **Antigravity Bridge** source, open **Antigravity Bridge**, and select **Add to Codex**.
 
 If you previously added an older marketplace from an earlier README, remove the old entry and add the main-branch marketplace again:
 
@@ -109,7 +74,7 @@ Refresh the marketplace snapshot:
 codex plugin marketplace upgrade codex-agent-bridge
 ```
 
-Do not use `--sparse .agents/plugins` for this repository. Use an empty sparse path for the full Agent Bridge marketplace, or `--sparse plugins/claude-code-bridge` / `--sparse plugins/antigravity-bridge` for a single plugin.
+Do not use sparse marketplace installation for this repository. Leave sparse path empty so Codex reads the single root Agent Bridge marketplace.
 
 ### Install on Another Machine
 
@@ -422,14 +387,12 @@ ANTIGRAVITY_COMPANION_AGY_BIN="$PWD/tests/fake-agy-fixture.mjs" \
 
 ## Repository Layout
 
-- `.agents/plugins/marketplace.json`: root marketplace entry for installing all Agent Bridge plugins from this repository.
-- `plugins/claude-code-bridge/.agents/plugins/marketplace.json`: plugin-local marketplace for sparse single-plugin installation.
+- `.agents/plugins/marketplace.json`: the only marketplace entry for installing Agent Bridge plugins from this repository.
 - `plugins/claude-code-bridge/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
 - `plugins/claude-code-bridge/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
 - `plugins/claude-code-bridge/scripts/claude-companion.mjs`: current Claude Code adapter CLI entrypoint.
 - `plugins/claude-code-bridge/scripts/lib/`: argument parsing, Claude invocation, git context, state, background jobs, rendering, and process helpers.
 - `plugins/claude-code-bridge/schemas/review-output.schema.json`: normalized result schema.
-- `plugins/antigravity-bridge/.agents/plugins/marketplace.json`: plugin-local marketplace for sparse single-plugin installation.
 - `plugins/antigravity-bridge/.codex-plugin/plugin.json`: Codex plugin manifest. Declares skills and no MCP servers.
 - `plugins/antigravity-bridge/skills/`: Codex skill instructions for plan, review, rescue, and result handling.
 - `plugins/antigravity-bridge/scripts/antigravity-companion.mjs`: current Antigravity adapter CLI entrypoint.

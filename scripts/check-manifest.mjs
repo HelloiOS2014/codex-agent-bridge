@@ -54,14 +54,12 @@ function findPlugin(marketplacePath, marketplace, name) {
   return entry;
 }
 
-function checkSinglePluginMarketplace(pluginName, expected) {
+function checkNoPluginLocalMarketplace(pluginName) {
   const marketplacePath = `plugins/${pluginName}/.agents/plugins/marketplace.json`;
-  const marketplace = readJson(marketplacePath);
-  assert(marketplace.name === pluginName, `${marketplacePath}: single-plugin marketplace name mismatch`);
-  assert(marketplace.interface?.displayName === expected.displayName, `${marketplacePath}: display name mismatch`);
-  assert(Array.isArray(marketplace.plugins), `${marketplacePath}: plugins must be an array`);
-  assert(marketplace.plugins.length === 1, `${marketplacePath}: single-plugin marketplace must expose exactly one plugin`);
-  checkPluginEntry(marketplacePath, marketplace.plugins[0], "./", expected);
+  assert(
+    !fs.existsSync(path.join(root, marketplacePath)),
+    `${marketplacePath}: plugin-local marketplaces are not supported; use the root marketplace only`
+  );
 }
 
 const rootMarketplacePath = ".agents/plugins/marketplace.json";
@@ -73,5 +71,5 @@ assert(rootMarketplace.plugins.length === EXPECTED_PLUGINS.size, "root marketpla
 
 for (const [pluginName, expected] of EXPECTED_PLUGINS) {
   checkPluginEntry(rootMarketplacePath, findPlugin(rootMarketplacePath, rootMarketplace, pluginName), expected.rootPath, expected);
-  checkSinglePluginMarketplace(pluginName, expected);
+  checkNoPluginLocalMarketplace(pluginName);
 }

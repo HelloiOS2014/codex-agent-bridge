@@ -34,7 +34,7 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace expose
 - README and Antigravity skills must mention the `$ANTIGRAVITY_PLUGIN_ROOT` command path.
 - README installation docs must cover both Codex App UI fields and Codex CLI commands.
 - README installation docs must use the main branch as the install ref, not a development branch.
-- README installation docs must cover full marketplace installation and single-plugin sparse installation.
+- README installation docs must cover root marketplace installation only.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, `cancel`, `storage`, and `cleanup`.
 - If the user specifies a Claude Code model, pass it with `--model`. Short aliases such as `opus` or `sonnet` must be passed through as model values. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
 - Do not document or pass `--model` for Antigravity Bridge unless local `agy` exposes a supported model flag and tests are updated.
@@ -43,10 +43,9 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace expose
 - Antigravity skills must tell Codex agents: Do not ask users to edit shell PATH. If setup reports a missing `agy` binary, agents should check common local install locations and use command-scoped `ANTIGRAVITY_COMPANION_AGY_BIN` for the retry.
 - Skills must tell Codex agents to inspect `storage --json` or `cleanup --dry-run --json` when many jobs exist, storage warnings appear, or quota errors block background work. Broad `cleanup --all` must be preceded by `cleanup --all --dry-run --json`.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
-- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`, and the root marketplace entry for Antigravity Bridge must point to `./plugins/antigravity-bridge`.
-- Keep each installable plugin's plugin-local marketplace valid for single-plugin sparse installation. For Claude Code Bridge, `plugins/claude-code-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.
-- For Antigravity Bridge, `plugins/antigravity-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.
-- Do not document personal marketplace copying or `--sparse .agents/plugins` installation for this repository.
+- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This repository has exactly one marketplace, and the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`, while the root marketplace entry for Antigravity Bridge must point to `./plugins/antigravity-bridge`.
+- Do not add plugin-local marketplaces such as `plugins/*/.agents/plugins/marketplace.json`.
+- Do not document personal marketplace copying or sparse marketplace installation for this repository.
 - Update `tests/skills.test.mjs` when changing README or skill behavior.
 
 ## Verification

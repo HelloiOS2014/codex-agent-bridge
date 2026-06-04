@@ -92,8 +92,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Add plugin marketplace/);
   assert.match(readme, /Source: `git@github\.com:HelloiOS2014\/codex-agent-bridge\.git`/);
   assert.match(readme, /Git ref: `main`/);
-  assert.match(readme, /Sparse path: leave empty for the full Agent Bridge marketplace/);
-  assert.match(readme, /Sparse path: `plugins\/claude-code-bridge`/);
+  assert.match(readme, /Sparse path: leave empty/);
+  assert.doesNotMatch(readme, /Sparse path: `plugins\/claude-code-bridge`/);
+  assert.doesNotMatch(readme, /Sparse path: `plugins\/antigravity-bridge`/);
   assert.match(readme, /Install on Another Machine/);
   assert.match(readme, /registers the marketplace only/);
   assert.match(readme, /current Codex CLI does not install or enable an individual plugin/);
@@ -125,7 +126,8 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /codex plugin marketplace remove claude-companion-local/);
   assert.doesNotMatch(readme, /Git ref: `codex\/claude-companion-plugin`/);
   assert.match(readme, /Agent Bridge/);
-  assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
+  assert.match(readme, /exactly one marketplace/);
+  assert.match(readme, /Do not use sparse marketplace installation/);
   assert.match(readme, /plugins\/claude-code-bridge/);
   assert.match(readme, /plugins\/antigravity-bridge/);
   assert.match(readme, /Claude Code Bridge/);
@@ -182,11 +184,10 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /metadata\.storage/);
   assert.match(guide, /cleanup --all --dry-run --json/);
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
-  assert.match(guide, /multi-plugin marketplace repository/);
   assert.match(guide, /\.\/plugins\/claude-code-bridge/);
   assert.match(guide, /\.\/plugins\/antigravity-bridge/);
-  assert.match(guide, /plugin-local marketplace/);
-  assert.match(guide, /source\.path = "\.\/"/);
+  assert.match(guide, /exactly one marketplace/);
+  assert.match(guide, /Do not add plugin-local marketplaces/);
   assert.match(guide, /Do not document personal marketplace copying/);
   assert.match(guide, /npm test/);
   assert.match(guide, /npm run check:manifest/);
@@ -223,28 +224,14 @@ test("local marketplace exposes the plugin package", () => {
   assert.equal(antigravityEntry.source.path, "./plugins/antigravity-bridge");
 });
 
-test("claude plugin carries a single-plugin marketplace for sparse install", () => {
-  const marketplace = readJson("plugins/claude-code-bridge/.agents/plugins/marketplace.json");
+test("repository contains only the root marketplace", () => {
+  const marketplacePaths = [
+    ".agents/plugins/marketplace.json",
+    "plugins/claude-code-bridge/.agents/plugins/marketplace.json",
+    "plugins/antigravity-bridge/.agents/plugins/marketplace.json"
+  ].filter((relativePath) => fs.existsSync(path.join(root, relativePath)));
 
-  assert.equal(marketplace.name, "claude-code-bridge");
-  assert.equal(marketplace.interface.displayName, "Claude Code Bridge");
-  assert.equal(marketplace.plugins.length, 1);
-  assert.equal(marketplace.plugins[0].name, "claude-code-bridge");
-  assert.equal(marketplace.plugins[0].source.source, "local");
-  assert.equal(marketplace.plugins[0].source.path, "./");
-  assert.equal(marketplace.plugins[0].category, "Developer Tools");
-});
-
-test("antigravity plugin carries a single-plugin marketplace for sparse install", () => {
-  const marketplace = readJson("plugins/antigravity-bridge/.agents/plugins/marketplace.json");
-
-  assert.equal(marketplace.name, "antigravity-bridge");
-  assert.equal(marketplace.interface.displayName, "Antigravity Bridge");
-  assert.equal(marketplace.plugins.length, 1);
-  assert.equal(marketplace.plugins[0].name, "antigravity-bridge");
-  assert.equal(marketplace.plugins[0].source.source, "local");
-  assert.equal(marketplace.plugins[0].source.path, "./");
-  assert.equal(marketplace.plugins[0].category, "Developer Tools");
+  assert.deepEqual(marketplacePaths, [".agents/plugins/marketplace.json"]);
 });
 
 test("antigravity skill docs pin sandbox defaults and write-enabled rescue boundary", () => {
