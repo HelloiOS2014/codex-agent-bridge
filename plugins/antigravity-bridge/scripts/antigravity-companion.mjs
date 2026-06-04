@@ -26,7 +26,7 @@ const COMMAND_CONFIG = {
   setup: { booleanOptions: ["json"], valueOptions: [] },
   plan: {
     booleanOptions: ["background", "wait", "json"],
-    valueOptions: ["cwd", "prompt", "prompt-file", "timeout", "timeout-ms"],
+    valueOptions: ["cwd", "prompt", "prompt-file", "timeout", "timeout-ms", "model"],
     exclusiveGroups: [["background", "wait"]]
   },
   review: {
@@ -40,6 +40,7 @@ const COMMAND_CONFIG = {
       "prompt-file",
       "timeout",
       "timeout-ms",
+      "model",
       "max-diff",
       "max-diff-bytes",
       "max-untracked",
@@ -59,6 +60,7 @@ const COMMAND_CONFIG = {
       "prompt-file",
       "timeout",
       "timeout-ms",
+      "model",
       "max-diff",
       "max-diff-bytes",
       "max-untracked",
@@ -69,7 +71,7 @@ const COMMAND_CONFIG = {
   },
   rescue: {
     booleanOptions: ["background", "wait", "resume", "fresh", "write", "json"],
-    valueOptions: ["cwd", "prompt", "prompt-file", "timeout", "timeout-ms"],
+    valueOptions: ["cwd", "prompt", "prompt-file", "timeout", "timeout-ms", "model"],
     exclusiveGroups: [["background", "wait"], ["resume", "fresh"]]
   },
   status: { booleanOptions: ["all", "brief", "json"], valueOptions: ["cwd"] },
@@ -84,10 +86,10 @@ function usage() {
   return [
     "Usage:",
     "  antigravity-companion setup [--json]",
-    "  antigravity-companion plan [--background|--wait] [prompt...]",
-    "  antigravity-companion review [--background|--wait] [--base <ref>] [--scope auto|working-tree|branch]",
-    "  antigravity-companion adversarial-review [--background|--wait] [focus...]",
-    "  antigravity-companion rescue [--background|--wait] [--resume|--fresh] [--write] [prompt...]",
+    "  antigravity-companion plan [--background|--wait] [--model <model>] [prompt...]",
+    "  antigravity-companion review [--background|--wait] [--model <model>] [--base <ref>] [--scope auto|working-tree|branch]",
+    "  antigravity-companion adversarial-review [--background|--wait] [--model <model>] [focus...]",
+    "  antigravity-companion rescue [--background|--wait] [--model <model>] [--resume|--fresh] [--write] [prompt...]",
     "  antigravity-companion status [job-id] [--cwd <workspace>] [--all] [--brief] [--json]",
     "  antigravity-companion result [job-id] [--cwd <workspace>] [--json]",
     "  antigravity-companion cancel [job-id] [--cwd <workspace>] [--json]",

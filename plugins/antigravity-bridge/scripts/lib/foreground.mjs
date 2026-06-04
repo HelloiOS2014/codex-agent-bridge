@@ -8,6 +8,12 @@ import {
   renderRescueResult,
   renderReviewResult
 } from "./render.mjs";
+import {
+  collectGitTouchedFiles,
+  isolationMetadata,
+  prepareIsolatedWorkspace,
+  removeIsolatedWorkspace
+} from "./workspace-isolation.mjs";
 
 const FOREGROUND_COMMANDS = new Set(["plan", "review", "adversarial-review", "rescue"]);
 const VALID_SCOPES = new Set(["auto", "working-tree", "branch"]);
@@ -124,11 +130,85 @@ function agyRuntimeOptions(parsed, cwd, runtime, prompt, toolProfile, extra = {}
     cwd,
     env: runtime.env,
     prompt,
+    model: parsed.options.model,
     toolProfile,
     timeoutMs: timeoutMs(parsed.options),
     ...agyJobHooks(runtime),
     ...extra
   };
+}
+
+function mergeResultMetadata(result, metadata) {
+  return {
+    ...result,
+    metadata: {
+      ...(result.metadata ?? {}),
+      ...metadata
+    }
+  };
+}
+
+function errorMessage(error) {
+  if (!error) {
+    return "";
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function readOnlyViolationError(touchedFiles, result) {
+  const base = `Antigravity modified the read-only isolated workspace: ${touchedFiles.join(", ")}`;
+  const original = errorMessage(result.error);
+  return new Error(original ? `${base}; original agy error: ${original}` : base);
+}
+
+function composeIsolatedPrompt(prompt, isolation) {
+  return [
+    "Antigravity Bridge safety context:",
+    `- Original workspace: ${isolation.originalCwd}`,
+    `- Current execution workspace: ${isolation.isolatedCwd}`,
+    "- The current execution workspace is disposable. Treat it as a read-only snapshot for analysis only.",
+    "- Do not edit files, create commits, run write commands, install dependencies, or change project state.",
+    "- If any file changes are detected in this disposable workspace, the companion will mark the run as failed.",
+    "",
+    prompt
+  ].join("\n");
+}
+
+async function runReadOnlyAgyPrint(parsed, cwd, runtime, prompt, options = {}) {
+  const isolation = await prepareIsolatedWorkspace(cwd, {
+    env: runtime.env,
+    includeWorkspace: options.includeWorkspace
+  });
+
+  try {
+    const result = await runAgyPrint(agyRuntimeOptions(
+      parsed,
+      isolation.isolatedCwd,
+      runtime,
+      composeIsolatedPrompt(prompt, isolation),
+      "read",
+      options.runtimeOptions
+    ));
+    const touchedFiles = await collectGitTouchedFiles(isolation.snapshotRoot, {
+      env: runtime.env,
+      includeIgnored: true
+    });
+    const metadata = isolationMetadata(isolation, {
+      touchedFiles,
+      readOnlyViolation: touchedFiles.length > 0
+    });
+    if (touchedFiles.length > 0) {
+      return mergeResultMetadata({
+        ...result,
+        status: "failed",
+        touchedFiles,
+        error: readOnlyViolationError(touchedFiles, result)
+      }, metadata);
+    }
+    return mergeResultMetadata(result, metadata);
+  } finally {
+    await removeIsolatedWorkspace(isolation);
+  }
 }
 
 function targetLabelForContext(context) {
@@ -235,13 +315,9 @@ export async function runPlanForeground(parsed, runtime = {}) {
   if (!userPrompt) {
     throw new Error("Provide a planning prompt.");
   }
-  const result = await runAgyPrint(agyRuntimeOptions(
-    parsed,
-    cwd,
-    runtime,
-    composePlanPrompt(userPrompt),
-    "read"
-  ));
+  const result = await runReadOnlyAgyPrint(parsed, cwd, runtime, composePlanPrompt(userPrompt), {
+    includeWorkspace: true
+  });
   return normalizeResult("plan", result);
 }
 
@@ -256,13 +332,9 @@ export async function runReviewForeground(parsed, runtime = {}, adversarial = fa
   const prompt = adversarial
     ? composeAdversarialReviewPrompt(context, focus)
     : composeReviewPrompt(context);
-  const result = await runAgyPrint(agyRuntimeOptions(
-    parsed,
-    context.repoRoot ?? cwd,
-    runtime,
-    prompt,
-    "none"
-  ));
+  const result = await runReadOnlyAgyPrint(parsed, context.repoRoot ?? cwd, runtime, prompt, {
+    includeWorkspace: false
+  });
   return normalizeResult(adversarial ? "adversarial-review" : "review", result, reviewMetadata(context));
 }
 
@@ -277,6 +349,17 @@ export async function runRescueForeground(parsed, runtime = {}) {
     throw new Error("Provide a rescue prompt or --resume.");
   }
   const write = Boolean(parsed.options.write);
+  if (!write && parsed.options.resume) {
+    throw new Error("Antigravity read-only rescue cannot use --resume because continued CLI conversations may retain write-capable workspace context. Use --fresh or request explicit --write.");
+  }
+  if (!write) {
+    const result = await runReadOnlyAgyPrint(parsed, cwd, runtime, composeRescuePrompt(userPrompt, false), {
+      includeWorkspace: true,
+      runtimeOptions: { continueConversation: false }
+    });
+    return normalizeResult("rescue", result, { write: false });
+  }
+
   const result = await runAgyPrint(agyRuntimeOptions(
     parsed,
     cwd,
@@ -285,7 +368,23 @@ export async function runRescueForeground(parsed, runtime = {}) {
     write ? "write" : "read",
     { continueConversation: Boolean(parsed.options.resume) }
   ));
-  return normalizeResult("rescue", result, { write });
+  const touchedFiles = await collectGitTouchedFiles(cwd, { env: runtime.env });
+  return normalizeResult("rescue", {
+    ...result,
+    touchedFiles,
+    metadata: {
+      ...(result.metadata ?? {}),
+      antigravityIsolation: {
+        kind: "real-workspace",
+        originalCwd: cwd,
+        originalRepoRoot: null,
+        isolatedCwd: cwd,
+        snapshotRoot: null,
+        readOnlyViolation: false,
+        touchedFiles
+      }
+    }
+  }, { write });
 }
 
 export async function runForegroundCommand(parsed, runtime = {}) {

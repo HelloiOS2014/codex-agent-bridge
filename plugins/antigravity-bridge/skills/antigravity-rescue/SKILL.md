@@ -23,15 +23,16 @@ Use this skill to delegate investigation or implementation rescue work to Antigr
 ## Safety Defaults
 
 - Rescue defaults to read-only investigation.
+- Read-only rescue runs in a disposable isolated workspace snapshot. If Antigravity changes files in that snapshot, the companion marks the run failed and reports the touched files while leaving the real project untouched.
 - Add `--write` only when write access was explicitly requested by the user.
 - Do not automatically apply patch text returned by Antigravity; only `rescue --write` grants Antigravity a scoped write run after explicit user request.
 - Do not stage files, create commits, or push changes from rescue flows.
-- Do not pass `--model`; local `agy` 1.0.4 does not expose a model flag through this bridge.
+- If the user explicitly requests an Antigravity model, pass it with `--model <model>`. If the user does not specify a model, omit `--model` so `agy` uses its own default or configured model.
 - Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
 - For long debugging, reproduction, or implementation rescue, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
-- Do not disable sandboxing in read mode; read-only rescue uses the companion's `--sandbox` default.
+- Do not disable sandboxing or isolated-workspace behavior in read mode; read-only rescue uses the companion's `--sandbox` default.
 - In write-enabled rescue, keep changes scoped to the user request and inspect the companion result before presenting it.
 
 ## Setup Check
@@ -58,10 +59,10 @@ Write-enabled rescue, only after explicit user request:
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --write --json --prompt "$PROMPT"
 ```
 
-Resume the previous Antigravity CLI conversation for this workspace. This passes `agy --continue`; use `--fresh` when you need to avoid continue mode:
+Resume the previous Antigravity CLI conversation only for explicit write-enabled rescue. This passes `agy --continue`; read-only `rescue --resume` is rejected because continued CLI conversations may retain write-capable workspace context. Use `--fresh` when you need a read-only fresh session:
 
 ```bash
-node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --resume --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --write --resume --json
 ```
 
 Force a fresh rescue session:

@@ -23,14 +23,15 @@ Use this skill to delegate read-only review to Antigravity through the Antigravi
 ## Safety Defaults
 
 - Normal review and adversarial review are read-only.
+- Review and adversarial review run Antigravity in a disposable scratch cwd with pre-collected git context; the real repository is not used as Antigravity's cwd.
 - Do not fix issues, apply patches, create commits, or continue into implementation in the same delegated review.
 - Do not automatically apply Antigravity output, stage files, create commits, or push changes from review flows.
-- Do not pass `--model`; local `agy` 1.0.4 does not expose a model flag through this bridge.
+- If the user explicitly requests an Antigravity model, pass it with `--model <model>`. If the user does not specify a model, omit `--model` so `agy` uses its own default or configured model.
 - Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
 - For broad branch reviews, large diffs, or deep adversarial review, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
-- Do not disable sandboxing in read mode; normal review uses pre-collected git context and the companion's `--sandbox` default.
+- Do not disable sandboxing or isolated scratch execution in read mode; normal review uses pre-collected git context and the companion's `--sandbox` default.
 
 ## Setup Check
 

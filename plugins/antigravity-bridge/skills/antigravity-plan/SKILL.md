@@ -23,15 +23,16 @@ Use this skill to delegate planning to Antigravity through the Antigravity Bridg
 ## Safety Defaults
 
 - Planning is read-only.
-- The companion plan command uses Antigravity CLI print mode with `--sandbox` for read-only delegation.
+- The companion plan command uses Antigravity CLI print mode with `--sandbox` inside a disposable isolated workspace snapshot.
+- Treat `--sandbox` as one layer only. The bridge protects the real project by running read-only planning in an isolated snapshot and failing the result if Antigravity changes files there.
 - Do not ask Antigravity to edit files, create commits, or run write commands.
 - Do not automatically apply Antigravity output, stage files, create commits, or push changes from planning flows.
-- Do not pass `--model`; local `agy` 1.0.4 does not expose a model flag through this bridge.
+- If the user explicitly requests an Antigravity model, pass it with `--model <model>`. If the user does not specify a model, omit `--model` so `agy` uses its own default or configured model.
 - Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
 - For broad repo planning, multi-step architecture work, risk reviews, or anything likely to exceed a short foreground response, use `--background --json` and report the job id.
 - Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
-- Do not disable sandboxing in read mode; the companion plan command owns the `--sandbox` default.
+- Do not disable sandboxing or isolated-workspace behavior in read mode; the companion plan command owns those defaults.
 
 ## Setup Check
 

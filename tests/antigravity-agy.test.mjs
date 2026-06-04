@@ -21,7 +21,7 @@ function writeCapturingAgyFixture() {
   return writeAgyFixture("agy-capture.mjs", `#!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args.includes("--version")) {
-  console.log("1.0.4");
+  console.log("1.0.5");
   process.exit(0);
 }
 const terminatorIndex = args.indexOf("--");
@@ -59,10 +59,13 @@ test("buildAgyArgs uses print mode, sandbox, timeout, add-dir, and a prompt term
     prompt: "inspect this",
     sandbox: true,
     printTimeout: "30s",
+    model: "gemini-test",
     addDirs: ["/tmp/extra"]
   }), [
     "--print",
     "--sandbox",
+    "--model",
+    "gemini-test",
     "--print-timeout",
     "30s",
     "--add-dir",
@@ -93,7 +96,7 @@ test("getAgyStatus reports an available agy binary", async () => {
 
   assert.equal(status.available, true);
   assert.equal(status.ready, true);
-  assert.match(status.version.stdout, /1\.0\.4/);
+  assert.match(status.version.stdout, /1\.0\.5/);
   assert.equal(status.auth.checked, false);
 });
 
@@ -116,4 +119,19 @@ test("runAgyPrint passes prompt after -- and parses result envelopes", async () 
   assert.deepEqual(payload.args.slice(0, 4), ["--print", "--sandbox", "--print-timeout", "20s"]);
   assert.equal(payload.args.at(-2), "--");
   assert.equal(payload.args.at(-1), "--dangerously-skip-permissions should stay prompt text");
+});
+
+test("runAgyPrint treats auth timeout text as failure even with zero exit", async () => {
+  const agyBin = writeAgyFixture("agy-auth-timeout.mjs", `#!/usr/bin/env node
+console.log("authentication timed out");
+process.exit(0);
+`);
+  const result = await runAgyPrint({
+    agyBin,
+    prompt: "hello",
+    sandbox: true
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.error.message, /authentication timed out/i);
 });

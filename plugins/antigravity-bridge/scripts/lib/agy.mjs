@@ -128,6 +128,23 @@ function appendRepeatedValueOption(args, flag, values) {
   }
 }
 
+function detectAgyRuntimeError(result) {
+  if (result.status !== 0 || result.error) {
+    return null;
+  }
+
+  const combined = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
+  const patterns = [
+    /authentication timed out/i,
+    /please sign in/i,
+    /not authenticated/i,
+    /oauth.*timed out/i,
+    /invalid array length/i
+  ];
+  const matched = patterns.find((pattern) => pattern.test(combined));
+  return matched ? (combined.match(matched)?.[0] ?? "Antigravity runtime error") : null;
+}
+
 export function buildAgyArgs(options = {}) {
   const prompt = readPrompt(options);
   const requestedExtraArgs = normalizeStringArray(options.extraArgs, "extraArgs");
@@ -138,6 +155,7 @@ export function buildAgyArgs(options = {}) {
   if (shouldUseSandbox(options)) {
     args.push("--sandbox");
   }
+  appendValueOption(args, "--model", options.model);
   appendValueOption(args, "--print-timeout", options.printTimeout);
   appendRepeatedValueOption(args, "--add-dir", options.addDirs);
   if (options.continueConversation) {
@@ -206,16 +224,17 @@ export async function runAgyPrint(options = {}) {
   });
   const parsed = parseAgyJson(result.stdout);
   const output = parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+  const runtimeError = detectAgyRuntimeError(result);
 
   return {
-    status: result.status,
+    status: runtimeError ? 1 : result.status,
     signal: result.signal ?? null,
     stdout: result.stdout,
     stderr: result.stderr,
     raw: result.stdout,
     output,
     sessionId: parsed?.session_id ?? parsed?.sessionId ?? parsed?.conversation_id ?? parsed?.conversationId ?? null,
-    error: result.error ?? null,
+    error: result.error ?? (runtimeError ? new Error(runtimeError) : null),
     timedOut: Boolean(result.timedOut),
     agyBin,
     args

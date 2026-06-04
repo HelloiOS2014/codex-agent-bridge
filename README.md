@@ -194,7 +194,7 @@ node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" review --json 
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" adversarial-review --json --scope auto --prompt "$FOCUS"
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --json --prompt "$PROMPT"
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --write --json --prompt "$PROMPT"
-node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --resume --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" rescue --write --resume --json
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" storage --json
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" cleanup --dry-run --json
 ```
@@ -205,9 +205,9 @@ Common options:
 - `--json`: return machine-readable output for Codex to parse.
 - `--prompt <text>`: pass the prompt explicitly.
 - `--prompt-file <file>`: read the prompt from a file relative to the command workspace.
-- `--model <model>`: pass a user-requested Claude Code model through to Claude. The value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
-- Antigravity Bridge does not expose `--model`; local `agy` 1.0.4 has no model flag in this bridge.
-- Antigravity `rescue --resume` passes `agy --continue`; `rescue --fresh` starts without continue mode.
+- Claude `--model <model>`: pass a user-requested Claude Code model through to Claude. The value may be a short alias such as `opus` or `sonnet`, or a full model name. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
+- Antigravity `--model <model>`: pass a user-requested `agy` model through to Antigravity CLI. If the user does not specify a model, omit `--model` so `agy` uses its own default or configured model.
+- Antigravity `rescue --write --resume` passes `agy --continue`; read-only `rescue --resume` is rejected because continued CLI conversations may retain write-capable workspace context. `rescue --fresh` starts without continue mode.
 - `--background`: start a stored job and return immediately.
 - `--wait`: store the job, wait for completion, and return the result.
 - `--timeout-ms <n>` or `--timeout <n>`: optional hard stop for deliberate time-boxed runs. Agents should not add this by default.
@@ -323,7 +323,8 @@ Cleanup never removes `queued` or `running` jobs. Explicit `result <job-id>` rea
 
 - `plan`, `review`, and `adversarial-review` are read-only companion commands.
 - `plan` uses Claude Code's non-interactive `dontAsk` permission mode with the read-only `Read,Glob,Grep` tool profile.
-- Antigravity read-only commands use `agy --print` with `--sandbox`; this is not the same tool-profile model as Claude Code.
+- Antigravity read-only commands use `agy --print` with `--sandbox` inside a disposable isolated workspace. `plan` and read-only `rescue` receive a git-backed or copied snapshot; `review` and `adversarial-review` run in a scratch cwd with pre-collected git context. If Antigravity changes the isolated workspace, the companion marks the run failed and reports `touchedFiles`.
+- Antigravity `--sandbox` is not treated as a complete read-only guarantee; the isolated workspace and post-run audit are the bridge boundary.
 - `rescue` is read-only unless `--write` is present.
 - `rescue --write` is only for explicit user requests to edit or implement.
 - Dangerous Claude Code bypass flags are rejected by the current adapter.

@@ -147,15 +147,16 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" plan /);
   assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" review /);
   assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --write /);
-  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --resume --json/);
-  assert.match(readme, /Antigravity `rescue --resume` passes `agy --continue`/);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --write --resume --json/);
+  assert.match(readme, /Antigravity `rescue --write --resume` passes `agy --continue`/);
+  assert.match(readme, /read-only `rescue --resume` is rejected/);
   assert.match(readme, /ANTIGRAVITY_COMPANION_AGY_BIN/);
   assert.match(readme, /ANTIGRAVITY_COMPANION_MAX_STATE_BYTES/);
   assert.match(readme, /agyPid/);
   assert.match(readme, /agyArgv/);
 
   const antigravityRescue = read("plugins/antigravity-bridge/skills/antigravity-rescue/SKILL.md");
-  assert.match(antigravityRescue, /rescue --resume --json/);
+  assert.match(antigravityRescue, /rescue --write --resume --json/);
   assert.match(antigravityRescue, /agy --continue/);
 });
 
@@ -242,17 +243,21 @@ test("antigravity skill docs pin sandbox defaults and write-enabled rescue bound
 
   assert.match(plan, /Planning is read-only/);
   assert.match(plan, /`--sandbox`/);
-  assert.match(plan, /Do not pass `--model`/);
+  assert.match(plan, /disposable isolated workspace snapshot/);
+  assert.match(plan, /If the user explicitly requests an Antigravity model, pass it with `--model <model>`/);
   assert.doesNotMatch(plan, /dontAsk|Read,Glob,Grep/);
   assert.doesNotMatch(plan, /--write/);
 
   assert.match(review, /Normal review and adversarial review are read-only/);
+  assert.match(review, /disposable scratch cwd with pre-collected git context/);
   assert.match(review, /Do not fix issues/);
   assert.match(review, /`--sandbox`/);
   assert.doesNotMatch(review, /--write/);
 
   assert.match(rescue, /Rescue defaults to read-only investigation/);
+  assert.match(rescue, /Read-only rescue runs in a disposable isolated workspace snapshot/);
   assert.match(rescue, /--write/);
+  assert.match(rescue, /read-only `rescue --resume` is rejected/);
   assert.match(rescue, /explicitly requested by the user/);
   assert.match(combined, /ANTIGRAVITY_COMPANION_AGY_BIN/);
   assert.match(combined, /--dangerously-skip-permissions/);
