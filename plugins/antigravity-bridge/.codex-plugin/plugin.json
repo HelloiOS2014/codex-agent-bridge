@@ -1,0 +1,38 @@
+{
+  "name": "antigravity-bridge",
+  "version": "0.1.0",
+  "description": "Bridge Codex to local Antigravity CLI for planning, review, and delegated rescue work.",
+  "author": {
+    "name": "JOYY"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "codex",
+    "antigravity",
+    "agy",
+    "planning",
+    "review",
+    "delegation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Antigravity Bridge",
+    "shortDescription": "Delegate planning, review, and rescue work from Codex to Antigravity CLI",
+    "longDescription": "Antigravity Bridge lets Codex invoke local Antigravity CLI for architecture planning, code review, adversarial review, and explicitly write-enabled delegated tasks while keeping plan and review commands read-only.",
+    "developerName": "JOYY",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Ask Antigravity to plan this architecture",
+      "Ask Antigravity to review my current changes",
+      "Ask Antigravity to fix this issue"
+    ],
+    "brandColor": "#10A37F",
+    "screenshots": []
+  }
+}

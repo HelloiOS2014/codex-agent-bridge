@@ -1,0 +1,674 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  completeJobRecord,
+  compareJobsByLatestActivity,
+  createJobRecord,
+  findJob,
+  isActiveJob,
+  startJobRecord,
+  summarizeStatus
+} from "./jobs.mjs";
+import { terminateProcessTree } from "./process.mjs";
+import { normalizeCompanionResult } from "./render.mjs";
+import { readStoragePolicy } from "./storage-policy.mjs";
+import { pruneStateRoot, pruneWorkspaceState } from "./storage-prune.mjs";
+import {
+  appendJobLog,
+  listJobFileIds,
+  readJobFile,
+  readJobResultFile,
+  resolveJobLogFile,
+  readState,
+  upsertJob,
+  validateJobId,
+  writeJobResultFile
+} from "./state.mjs";
+
+const WORKER_OMITTED_OPTIONS = new Set(["background", "wait", "json", "cwd"]);
+const DEFAULT_QUEUED_STALE_MS = 30_000;
+const DEFAULT_RECENT_LOG_LINES = 3;
+const CANCEL_TERM_WAIT_MS = 1000;
+const CANCEL_KILL_WAIT_MS = 1000;
+const CANCEL_POLL_MS = 50;
+
+function jobWorkspace(parsed, runtime = {}) {
+  const baseCwd = runtime.cwd ?? process.cwd();
+  return parsed.options.cwd ? path.resolve(baseCwd, parsed.options.cwd) : baseCwd;
+}
+
+function workerArgsFromParsed(parsed) {
+  const args = [];
+  for (const [name, value] of Object.entries(parsed.options ?? {})) {
+    if (WORKER_OMITTED_OPTIONS.has(name) || value === false || value === undefined) {
+      continue;
+    }
+    args.push(`--${name}`);
+    if (value !== true) {
+      args.push(String(value));
+    }
+  }
+  args.push(...(parsed.positionals ?? []));
+  return args;
+}
+
+function jobRoot(job, fallbackRoot) {
+  return job.workspaceRoot ?? fallbackRoot ?? job.cwd;
+}
+
+function sortedJobs(jobs) {
+  return [...jobs].sort(compareJobsByLatestActivity);
+}
+
+function parseJobLogLine(line) {
+  const match = String(line).match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    timestamp: match[1],
+    message: match[2]
+  };
+}
+
+function readRecentJobLog(job, workspaceRoot, env, limit = DEFAULT_RECENT_LOG_LINES) {
+  const root = jobRoot(job, workspaceRoot);
+  const logPath = job.logPath ?? resolveJobLogFile(root, job.id, env);
+  let text = "";
+  try {
+    text = fs.readFileSync(logPath, "utf8");
+  } catch {
+    return [];
+  }
+  return text
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(parseJobLogLine)
+    .filter(Boolean)
+    .slice(-limit);
+}
+
+function parseTimeMs(value) {
+  const time = Date.parse(value ?? "");
+  return Number.isFinite(time) ? time : null;
+}
+
+function elapsedMs(start, end = Date.now()) {
+  const startMs = parseTimeMs(start);
+  if (startMs === null) {
+    return null;
+  }
+  const endMs = typeof end === "number" ? end : parseTimeMs(end);
+  if (endMs === null) {
+    return null;
+  }
+  return Math.max(0, endMs - startMs);
+}
+
+function statusActivity(job, recentLog) {
+  return recentLog.at(-1)?.timestamp
+    ?? job.endedAt
+    ?? job.startedAt
+    ?? job.createdAt
+    ?? null;
+}
+
+function annotateJobForStatus(job, workspaceRoot, env, options = {}) {
+  const recentLog = readRecentJobLog(job, workspaceRoot, env, options.recentLogLimit ?? DEFAULT_RECENT_LOG_LINES);
+  const lastActivityAt = statusActivity(job, recentLog);
+  const phase = job.status === "running" && job.phase === "starting" ? "running" : job.phase;
+  return {
+    ...job,
+    phase,
+    lastActivityAt,
+    runtimeMs: job.startedAt ? elapsedMs(job.startedAt, job.endedAt ?? Date.now()) : 0,
+    idleMs: lastActivityAt ? elapsedMs(lastActivityAt) : null,
+    recentLog
+  };
+}
+
+function annotateJobsForStatus(jobs, workspaceRoot, env, options = {}) {
+  return jobs.map((job) => annotateJobForStatus(job, workspaceRoot, env, options));
+}
+
+function messageFromError(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function safeProcessPid(value) {
+  return Number.isInteger(value) && value > 1 ? value : null;
+}
+
+function processPidIsLive(value) {
+  const pid = safeProcessPid(value);
+  if (pid === null) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
+function failedResult(job, error) {
+  const message = messageFromError(error);
+  return normalizeCompanionResult({
+    kind: job.kind,
+    status: "failed",
+    summary: message,
+    rawOutput: "",
+    text: "",
+    error: message,
+    metadata: { jobId: job.id }
+  }, { kind: job.kind });
+}
+
+function cancelledResult(job, message) {
+  return normalizeCompanionResult({
+    kind: job.kind,
+    status: "cancelled",
+    summary: message,
+    rawOutput: "",
+    text: "",
+    error: message,
+    metadata: { jobId: job.id }
+  }, { kind: job.kind });
+}
+
+function unavailableResult(job) {
+  const summary = `Job ${job.id} is still ${job.status}; result is not available yet.`;
+  return normalizeCompanionResult({
+    kind: job.kind,
+    status: job.status,
+    summary,
+    rawOutput: "",
+    text: "",
+    error: null,
+    metadata: {
+      jobId: job.id,
+      resultAvailable: false
+    }
+  }, { kind: job.kind });
+}
+
+function staleActiveJobMessage(job) {
+  const pid = job.pid === null || job.pid === undefined ? "none" : String(job.pid);
+  return `Job ${job.id} marked failed because active status ${job.status} has no safe live process id (pid ${pid}).`;
+}
+
+function failActiveJob(job, workspaceRoot, env, message = staleActiveJobMessage(job), logPrefix = "reconciled stale active job") {
+  validateJobId(job.id);
+  const root = jobRoot(job, workspaceRoot);
+  const result = failedResult(job, new Error(message));
+  writeJobResultFile(root, job.id, result, env);
+  const failed = completeJobRecord(job, result);
+  upsertJob(root, failed, env);
+  appendJobLog(root, failed.id, `${logPrefix}: ${message}`, env);
+  return failed;
+}
+
+function failStaleActiveJob(job, workspaceRoot, env) {
+  return failActiveJob(job, workspaceRoot, env);
+}
+
+function queuedJobIsStale(job, staleMs = DEFAULT_QUEUED_STALE_MS) {
+  const createdAtMs = Date.parse(job?.createdAt ?? "");
+  if (!Number.isFinite(createdAtMs)) {
+    return true;
+  }
+  return Date.now() - createdAtMs > staleMs;
+}
+
+function reconcileActiveJob(job, workspaceRoot, env, options = {}) {
+  if (!isActiveJob(job)) {
+    return job;
+  }
+  if (job.status === "queued") {
+    if (!queuedJobIsStale(job, options.queuedStaleMs ?? DEFAULT_QUEUED_STALE_MS)) {
+      return job;
+    }
+    return failStaleActiveJob(job, workspaceRoot, env);
+  }
+  if (processPidIsLive(job.pid)) {
+    return job;
+  }
+  return failStaleActiveJob(job, workspaceRoot, env);
+}
+
+function reconcileActiveJobs(workspaceRoot, jobs, env, options = {}) {
+  return jobs.map((job) => reconcileActiveJob(job, workspaceRoot, env, options));
+}
+
+function stripJobResult(job) {
+  if (!job) {
+    return job;
+  }
+  const {
+    args,
+    result,
+    stdoutTail,
+    stderrTail,
+    ...rest
+  } = job;
+  return rest;
+}
+
+function stripSnapshotResults(snapshot) {
+  return {
+    ...snapshot,
+    running: Array.isArray(snapshot.running) ? snapshot.running.map(stripJobResult) : snapshot.running,
+    latestFinished: stripJobResult(snapshot.latestFinished),
+    recent: Array.isArray(snapshot.recent) ? snapshot.recent.map(stripJobResult) : snapshot.recent,
+    job: stripJobResult(snapshot.job)
+  };
+}
+
+function ensureDirectory(directory, label) {
+  let stat;
+  try {
+    stat = fs.statSync(directory);
+  } catch (error) {
+    throw new Error(`${label} does not exist: ${directory}`);
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`${label} is not a directory: ${directory}`);
+  }
+  return directory;
+}
+
+function storageProtectedIds(values = []) {
+  return new Set(values.filter(Boolean).map((value) => String(value)));
+}
+
+function runStorageMaintenance(workspaceRoot, env, options = {}) {
+  const protectedJobIds = storageProtectedIds(options.protectedJobIds);
+  pruneWorkspaceState(workspaceRoot, {
+    env,
+    protectedJobIds,
+    dryRun: Boolean(options.dryRun)
+  });
+  return pruneStateRoot({
+    env,
+    protectedJobIds,
+    dryRun: Boolean(options.dryRun)
+  });
+}
+
+function ensureStorageQuotaAvailable(workspaceRoot, env) {
+  const report = runStorageMaintenance(workspaceRoot, env);
+  const policy = readStoragePolicy(env);
+  if (report.afterBytes > policy.maxStateBytes) {
+    throw new Error(
+      `Antigravity Bridge storage quota exceeded: ${report.afterBytes} bytes used after cleanup, cap ${policy.maxStateBytes} bytes. Run cleanup --dry-run --json or increase ANTIGRAVITY_COMPANION_MAX_STATE_BYTES.`
+    );
+  }
+  return report;
+}
+
+function readCurrentJobOr(job, root, env) {
+  try {
+    return readJobFile(root, job.id, env);
+  } catch {
+    return job;
+  }
+}
+
+function failQueuedWorkerLaunch(job, root, env, message) {
+  const current = readCurrentJobOr(job, root, env);
+  if (!isActiveJob(current) || current.status !== "queued") {
+    return current;
+  }
+  return failActiveJob(current, root, env, message, "worker launch failed");
+}
+
+export function createQueuedJob(parsed, runtime = {}) {
+  const env = runtime.env ?? process.env;
+  const workspaceRoot = jobWorkspace(parsed, runtime);
+  ensureDirectory(workspaceRoot, "Worker cwd");
+  ensureStorageQuotaAvailable(workspaceRoot, env);
+  const job = createJobRecord({
+    kind: parsed.command,
+    cwd: workspaceRoot,
+    workspaceRoot,
+    command: parsed.command,
+    args: workerArgsFromParsed(parsed),
+    write: parsed.options.write,
+    summary: `${parsed.command} queued`,
+    env
+  });
+  upsertJob(workspaceRoot, job, env);
+  appendJobLog(workspaceRoot, job.id, `queued ${job.command} ${job.args.join(" ")}`.trim(), env);
+  return job;
+}
+
+export function spawnBackgroundJob(job, options = {}) {
+  const env = options.env ?? process.env;
+  const cliPath = options.cliPath;
+  const root = jobRoot(job);
+  if (!cliPath) {
+    throw new Error("Internal error: missing CLI path for background worker.");
+  }
+  try {
+    ensureDirectory(job.cwd, "Worker cwd");
+  } catch (error) {
+    return failQueuedWorkerLaunch(job, root, env, messageFromError(error));
+  }
+
+  let child;
+  try {
+    child = spawn(process.execPath, [cliPath, "run-job", job.id], {
+      cwd: job.cwd,
+      env,
+      detached: true,
+      stdio: "ignore"
+    });
+  } catch (error) {
+    return failQueuedWorkerLaunch(job, root, env, `Worker process could not be spawned: ${messageFromError(error)}`);
+  }
+
+  child.once("error", (error) => {
+    failQueuedWorkerLaunch(job, root, env, `Worker process failed to start: ${messageFromError(error)}`);
+  });
+  child.once("close", (status, signal) => {
+    const current = readCurrentJobOr(job, root, env);
+    if (current.status === "queued") {
+      const statusLabel = status === null ? `signal ${signal ?? "unknown"}` : `status ${status}`;
+      failQueuedWorkerLaunch(job, root, env, `Worker process exited before starting job with ${statusLabel}.`);
+    }
+  });
+
+  child.unref();
+  appendJobLog(root, job.id, `spawned worker pid ${child.pid}`, env);
+
+  let current = job;
+  try {
+    current = readJobFile(root, job.id, env);
+  } catch {
+    current = job;
+  }
+  if (!isActiveJob(current)) {
+    appendJobLog(root, current.id, `worker reached ${current.status} before parent recorded pid ${child.pid}`, env);
+    return current;
+  }
+
+  // The run-job worker is the only process allowed to persist the running
+  // transition. Returning a transient running view preserves launch feedback
+  // without creating a parent-after-worker overwrite window.
+  return startJobRecord(current, child.pid);
+}
+
+export function listJobs(workspaceRoot, env = process.env) {
+  const state = readState(workspaceRoot, env);
+  const jobsById = new Map();
+  const orderedIds = [];
+  const addJob = (job) => {
+    if (!job?.id) {
+      return;
+    }
+    if (!jobsById.has(job.id)) {
+      orderedIds.push(job.id);
+    }
+    jobsById.set(job.id, job);
+  };
+
+  for (const entry of state.jobs) {
+    if (!entry?.id) {
+      continue;
+    }
+    try {
+      addJob(readJobFile(workspaceRoot, entry.id, env));
+    } catch {
+      addJob(entry);
+    }
+  }
+  for (const jobId of listJobFileIds(workspaceRoot, env)) {
+    try {
+      addJob(readJobFile(workspaceRoot, jobId, env));
+    } catch {
+      // Ignore malformed or concurrently replaced job files; state entries above remain available as a cache.
+    }
+  }
+  return orderedIds.map((jobId) => jobsById.get(jobId));
+}
+
+export function statusSnapshot(workspaceRoot, options = {}) {
+  const env = options.env ?? process.env;
+  const reconciledJobs = reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env, options);
+  runStorageMaintenance(workspaceRoot, env, { protectedJobIds: options.jobId ? [options.jobId] : [] });
+  const jobs = annotateJobsForStatus(reconciledJobs, workspaceRoot, env, options);
+  if (options.jobId) {
+    const job = findJob(jobs, options.jobId);
+    const snapshot = {
+      running: isActiveJob(job) ? [job] : [],
+      latestFinished: isActiveJob(job) ? null : job,
+      recent: [],
+      job
+    };
+    return options.brief ? stripSnapshotResults(snapshot) : snapshot;
+  }
+
+  const snapshot = summarizeStatus(jobs);
+  if (options.all) {
+    const allRecent = sortedJobs(jobs).filter((job) => job.id !== snapshot.latestFinished?.id);
+    const allSnapshot = { ...snapshot, recent: allRecent, all: true };
+    return options.brief ? stripSnapshotResults(allSnapshot) : allSnapshot;
+  }
+  return options.brief ? stripSnapshotResults(snapshot) : snapshot;
+}
+
+export function readSelectedResult(workspaceRoot, options = {}) {
+  const env = options.env ?? process.env;
+  const jobs = sortedJobs(reconcileActiveJobs(workspaceRoot, listJobs(workspaceRoot, env), env, options));
+  const job = options.jobId
+    ? findJob(jobs, options.jobId)
+    : jobs.find((entry) => !isActiveJob(entry));
+
+  if (!job) {
+    throw new Error("No finished Antigravity companion job found.");
+  }
+
+  runStorageMaintenance(workspaceRoot, env, { protectedJobIds: [job.id] });
+
+  let result = null;
+  try {
+    result = readJobResultFile(jobRoot(job, workspaceRoot), job.id, env);
+  } catch {
+    result = job.result ?? null;
+  }
+
+  if (!result) {
+    if (isActiveJob(job)) {
+      return { job, result: unavailableResult(job) };
+    }
+    throw new Error(`No result available for "${job.id}" while job status is ${job.status}.`);
+  }
+
+  return { job, result };
+}
+
+function updateRunningJob(root, env, jobId, updates, logMessage) {
+  let current;
+  try {
+    current = readJobFile(root, jobId, env);
+  } catch {
+    return null;
+  }
+  if (!isActiveJob(current)) {
+    return current;
+  }
+  const next = { ...current, ...updates };
+  upsertJob(root, next, env);
+  if (logMessage) {
+    appendJobLog(root, next.id, logMessage, env);
+  }
+  return next;
+}
+
+export async function runStoredJob(jobId, options = {}) {
+  const safeJobId = validateJobId(jobId);
+  const env = options.env ?? process.env;
+  const workspaceRoot = options.workspaceRoot ?? process.cwd();
+  const execute = options.execute;
+  if (typeof execute !== "function") {
+    throw new Error("Internal error: missing stored job executor.");
+  }
+
+  let job = readJobFile(workspaceRoot, safeJobId, env);
+  const root = jobRoot(job, workspaceRoot);
+  if (!isActiveJob(job)) {
+    appendJobLog(root, job.id, `worker skipped ${job.status} job`, env);
+    return job;
+  }
+
+  job = startJobRecord(job, process.pid);
+  upsertJob(root, job, env);
+  appendJobLog(root, job.id, `worker started pid ${process.pid}`, env);
+
+  let result;
+  try {
+    result = await execute(job, {
+      updateJob: (updates, logMessage) => updateRunningJob(root, env, job.id, updates, logMessage)
+    });
+  } catch (error) {
+    result = failedResult(job, error);
+  }
+
+  let current = readCurrentJobOr(job, root, env);
+  if (!isActiveJob(current)) {
+    appendJobLog(root, current.id, `worker preserved terminal ${current.status} state`, env);
+    return current;
+  }
+
+  try {
+    writeJobResultFile(root, current.id, result, env);
+  } catch (error) {
+    result = failedResult(current, error);
+    current = readCurrentJobOr(current, root, env);
+    if (!isActiveJob(current)) {
+      appendJobLog(root, current.id, `worker preserved terminal ${current.status} state after result write failure`, env);
+      return current;
+    }
+    writeJobResultFile(root, current.id, result, env);
+  }
+
+  current = readCurrentJobOr(current, root, env);
+  if (!isActiveJob(current)) {
+    if (current.result) {
+      writeJobResultFile(root, current.id, current.result, env);
+    }
+    appendJobLog(root, current.id, `worker preserved terminal ${current.status} state after result write`, env);
+    return current;
+  }
+
+  const completed = completeJobRecord(current, result);
+  upsertJob(root, completed, env);
+  appendJobLog(root, completed.id, `worker finished with status ${completed.status}`, env);
+  runStorageMaintenance(root, env, { protectedJobIds: [completed.id] });
+  return completed;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function uniqueCancelTargets(job) {
+  const targets = [];
+  const seen = new Set();
+  for (const [role, value] of [["worker", job.pid], ["agy", job.agyPid]]) {
+    const pid = Number(value);
+    if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid || seen.has(pid)) {
+      continue;
+    }
+    seen.add(pid);
+    targets.push({ role, pid });
+  }
+  return targets;
+}
+
+function signalCancelTargets(targets, signal) {
+  return targets.map((target) => ({
+    ...target,
+    signal,
+    signalled: terminateProcessTree(target.pid, signal, { allowPidFallback: true })
+  }));
+}
+
+async function waitForTargetsToExit(targets, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (targets.every((target) => !processPidIsLive(target.pid))) {
+      return true;
+    }
+    await sleep(CANCEL_POLL_MS);
+  }
+  return targets.every((target) => !processPidIsLive(target.pid));
+}
+
+export async function cancelJob(workspaceRoot, jobId, options = {}) {
+  const env = options.env ?? process.env;
+  const job = findJob(listJobs(workspaceRoot, env), jobId);
+  const root = jobRoot(job, workspaceRoot);
+
+  if (!isActiveJob(job)) {
+    return {
+      status: "unchanged",
+      message: `Job ${job.id} is already ${job.status}.`,
+      signalled: false,
+      job
+    };
+  }
+
+  const targets = uniqueCancelTargets(job);
+  const termTargets = signalCancelTargets(targets, "SIGTERM");
+  let processExited = termTargets.some((target) => target.signalled)
+    ? await waitForTargetsToExit(targets, options.termWaitMs ?? CANCEL_TERM_WAIT_MS)
+    : false;
+  let killTargets = [];
+  if (!processExited && termTargets.some((target) => target.signalled)) {
+    const liveTargets = targets.filter((target) => processPidIsLive(target.pid));
+    killTargets = signalCancelTargets(liveTargets, "SIGKILL");
+    processExited = await waitForTargetsToExit(targets, options.killWaitMs ?? CANCEL_KILL_WAIT_MS);
+  }
+
+  const signalled = termTargets.some((target) => target.signalled);
+  const killSignalled = killTargets.some((target) => target.signalled);
+  const message = signalled
+    ? (processExited ? "Cancellation requested and process exited." : "Cancellation requested; process may still be exiting.")
+    : "Job marked cancelled; no safe running process id was signalled.";
+  const baseResult = cancelledResult(job, message);
+  const result = {
+    ...baseResult,
+    metadata: {
+      ...baseResult.metadata,
+      jobId: job.id,
+      cancellation: {
+        termTargets,
+        killTargets,
+        processExited
+      }
+    }
+  };
+
+  writeJobResultFile(root, job.id, result, env);
+  const cancelled = completeJobRecord(job, result);
+  upsertJob(root, cancelled, env);
+  appendJobLog(root, cancelled.id, `${message} worker pid ${job.pid ?? "none"} agy pid ${job.agyPid ?? "none"}`, env);
+  runStorageMaintenance(root, env, { protectedJobIds: [cancelled.id] });
+
+  return {
+    status: "cancelled",
+    message,
+    signalled,
+    termSignalled: signalled,
+    killSignalled,
+    processExited,
+    workerPid: Number.isInteger(Number(job.pid)) ? Number(job.pid) : null,
+    agyPid: Number.isInteger(Number(job.agyPid)) ? Number(job.agyPid) : null,
+    signalTargets: termTargets,
+    killTargets,
+    job: cancelled
+  };
+}

@@ -15,8 +15,20 @@ function assert(condition, message) {
   }
 }
 
-function checkPluginEntry(marketplacePath, entry, expectedPath) {
-  assert(entry.name === "claude-code-bridge", `${marketplacePath}: unexpected plugin name`);
+const EXPECTED_PLUGINS = new Map([
+  ["claude-code-bridge", {
+    displayName: "Claude Code Bridge",
+    rootPath: "./plugins/claude-code-bridge"
+  }],
+  ["antigravity-bridge", {
+    displayName: "Antigravity Bridge",
+    rootPath: "./plugins/antigravity-bridge"
+  }]
+]);
+
+function checkPluginEntry(marketplacePath, entry, expectedPath, expected) {
+  assert(EXPECTED_PLUGINS.has(entry.name), `${marketplacePath}: unexpected plugin name ${entry.name}`);
+  assert(expected?.displayName, `${marketplacePath}: missing expected metadata for ${entry.name}`);
   assert(entry.category === "Developer Tools", `${marketplacePath}: category must be Developer Tools`);
   assert(entry.source?.source === "local", `${marketplacePath}: source must be local`);
   assert(entry.source?.path === expectedPath, `${marketplacePath}: unexpected source path`);
@@ -32,8 +44,24 @@ function checkPluginEntry(marketplacePath, entry, expectedPath) {
   assert(manifest.skills === "./skills/", `${manifestPath}: missing skills directory`);
   assert(fs.existsSync(path.join(pluginRoot, manifest.skills)), `${manifestPath}: skills directory missing`);
   assert(!Object.hasOwn(manifest, "mcpServers"), `${manifestPath}: mcpServers must not be declared`);
-  assert(manifest.interface?.displayName === "Claude Code Bridge", `${manifestPath}: unexpected display name`);
+  assert(manifest.interface?.displayName === expected.displayName, `${manifestPath}: unexpected display name`);
   assert(manifest.interface?.category === "Developer Tools", `${manifestPath}: unexpected category`);
+}
+
+function findPlugin(marketplacePath, marketplace, name) {
+  const entry = marketplace.plugins.find((plugin) => plugin.name === name);
+  assert(entry, `${marketplacePath}: missing plugin ${name}`);
+  return entry;
+}
+
+function checkSinglePluginMarketplace(pluginName, expected) {
+  const marketplacePath = `plugins/${pluginName}/.agents/plugins/marketplace.json`;
+  const marketplace = readJson(marketplacePath);
+  assert(marketplace.name === pluginName, `${marketplacePath}: single-plugin marketplace name mismatch`);
+  assert(marketplace.interface?.displayName === expected.displayName, `${marketplacePath}: display name mismatch`);
+  assert(Array.isArray(marketplace.plugins), `${marketplacePath}: plugins must be an array`);
+  assert(marketplace.plugins.length === 1, `${marketplacePath}: single-plugin marketplace must expose exactly one plugin`);
+  checkPluginEntry(marketplacePath, marketplace.plugins[0], "./", expected);
 }
 
 const rootMarketplacePath = ".agents/plugins/marketplace.json";
@@ -41,13 +69,9 @@ const rootMarketplace = readJson(rootMarketplacePath);
 assert(rootMarketplace.name === "codex-agent-bridge", "root marketplace name mismatch");
 assert(rootMarketplace.interface?.displayName === "Agent Bridge", "root marketplace display name mismatch");
 assert(Array.isArray(rootMarketplace.plugins), "root marketplace plugins must be an array");
-assert(rootMarketplace.plugins.length >= 1, "root marketplace must expose at least one plugin");
-checkPluginEntry(rootMarketplacePath, rootMarketplace.plugins[0], "./plugins/claude-code-bridge");
+assert(rootMarketplace.plugins.length === EXPECTED_PLUGINS.size, "root marketplace plugin count mismatch");
 
-const claudeMarketplacePath = "plugins/claude-code-bridge/.agents/plugins/marketplace.json";
-const claudeMarketplace = readJson(claudeMarketplacePath);
-assert(claudeMarketplace.name === "claude-code-bridge", "single-plugin marketplace name mismatch");
-assert(claudeMarketplace.interface?.displayName === "Claude Code Bridge", "single-plugin marketplace display name mismatch");
-assert(Array.isArray(claudeMarketplace.plugins), "single-plugin marketplace plugins must be an array");
-assert(claudeMarketplace.plugins.length === 1, "single-plugin marketplace must expose exactly one plugin");
-checkPluginEntry(claudeMarketplacePath, claudeMarketplace.plugins[0], "./");
+for (const [pluginName, expected] of EXPECTED_PLUGINS) {
+  checkPluginEntry(rootMarketplacePath, findPlugin(rootMarketplacePath, rootMarketplace, pluginName), expected.rootPath, expected);
+  checkSinglePluginMarketplace(pluginName, expected);
+}

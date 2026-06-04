@@ -6,12 +6,20 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const pluginRoot = path.join(root, "plugins", "claude-code-bridge");
+const antigravityPluginRoot = path.join(root, "plugins", "antigravity-bridge");
 
 const skillFiles = [
   "plugins/claude-code-bridge/skills/claude-plan/SKILL.md",
   "plugins/claude-code-bridge/skills/claude-review/SKILL.md",
   "plugins/claude-code-bridge/skills/claude-rescue/SKILL.md",
   "plugins/claude-code-bridge/skills/claude-result-handling/SKILL.md"
+];
+
+const antigravitySkillFiles = [
+  "plugins/antigravity-bridge/skills/antigravity-plan/SKILL.md",
+  "plugins/antigravity-bridge/skills/antigravity-review/SKILL.md",
+  "plugins/antigravity-bridge/skills/antigravity-rescue/SKILL.md",
+  "plugins/antigravity-bridge/skills/antigravity-result-handling/SKILL.md"
 ];
 
 function read(relativePath) {
@@ -24,6 +32,7 @@ function readJson(relativePath) {
 
 test("manifest exposes the skills directory and all expected skills exist", () => {
   const manifest = readJson("plugins/claude-code-bridge/.codex-plugin/plugin.json");
+  const antigravityManifest = readJson("plugins/antigravity-bridge/.codex-plugin/plugin.json");
 
   assert.equal(manifest.skills, "./skills/");
   assert.equal(Object.hasOwn(manifest, "mcpServers"), false);
@@ -33,6 +42,19 @@ test("manifest exposes the skills directory and all expected skills exist", () =
     assert.match(body, /description:/);
     assert.match(body, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs"/);
     assert.doesNotMatch(body, /node scripts\/claude-companion\.mjs/);
+    assert.match(body, /--json/);
+  }
+
+  assert.equal(antigravityManifest.name, "antigravity-bridge");
+  assert.equal(antigravityManifest.skills, "./skills/");
+  assert.equal(Object.hasOwn(antigravityManifest, "mcpServers"), false);
+  assert.equal(antigravityManifest.interface.displayName, "Antigravity Bridge");
+  for (const file of antigravitySkillFiles) {
+    const body = read(file);
+    assert.match(body, /^---\nname: antigravity-/);
+    assert.match(body, /description:/);
+    assert.match(body, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs"/);
+    assert.doesNotMatch(body, /node scripts\/antigravity-companion\.mjs/);
     assert.match(body, /--json/);
   }
 });
@@ -105,7 +127,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /Agent Bridge/);
   assert.match(readme, /Do not use `--sparse \.agents\/plugins`/);
   assert.match(readme, /plugins\/claude-code-bridge/);
+  assert.match(readme, /plugins\/antigravity-bridge/);
   assert.match(readme, /Claude Code Bridge/);
+  assert.match(readme, /Antigravity Bridge/);
   assert.doesNotMatch(readme, /codex plugin marketplace list/);
   assert.doesNotMatch(readme, /node scripts\/install-personal-marketplace\.mjs/);
   assert.doesNotMatch(readme, /~\/\.codex\/plugins\/claude-companion/);
@@ -114,7 +138,23 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /stage, commit, or push/);
   assert.match(readme, /does not use MCP/);
   assert.match(readme, /Claude Code CLI installed and authenticated/);
+  assert.match(readme, /Antigravity CLI installed/);
   assert.match(readme, /Ask Claude to review my current changes/);
+  assert.match(readme, /Ask Antigravity to review my current changes/);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" setup/);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" plan /);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" review /);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --write /);
+  assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --resume --json/);
+  assert.match(readme, /Antigravity `rescue --resume` passes `agy --continue`/);
+  assert.match(readme, /ANTIGRAVITY_COMPANION_AGY_BIN/);
+  assert.match(readme, /ANTIGRAVITY_COMPANION_MAX_STATE_BYTES/);
+  assert.match(readme, /agyPid/);
+  assert.match(readme, /agyArgv/);
+
+  const antigravityRescue = read("plugins/antigravity-bridge/skills/antigravity-rescue/SKILL.md");
+  assert.match(antigravityRescue, /rescue --resume --json/);
+  assert.match(antigravityRescue, /agy --continue/);
 });
 
 test("AGENTS guide documents maintenance invariants", () => {
@@ -125,6 +165,7 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Do not route multiple agents through one generic plugin by keyword matching/);
   assert.match(guide, /Do not add MCP servers/);
   assert.match(guide, /node "\$CLAUDE_PLUGIN_ROOT\/scripts\/claude-companion\.mjs"/);
+  assert.match(guide, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs"/);
   assert.doesNotMatch(guide, /node scripts\/claude-companion\.mjs/);
   assert.match(guide, /plan`, `review`, and `adversarial-review` must remain read-only/);
   assert.match(guide, /rescue` must remain read-only unless/);
@@ -143,6 +184,7 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /\.agents\/plugins\/marketplace\.json/);
   assert.match(guide, /multi-plugin marketplace repository/);
   assert.match(guide, /\.\/plugins\/claude-code-bridge/);
+  assert.match(guide, /\.\/plugins\/antigravity-bridge/);
   assert.match(guide, /plugin-local marketplace/);
   assert.match(guide, /source\.path = "\.\/"/);
   assert.match(guide, /Do not document personal marketplace copying/);
@@ -155,19 +197,30 @@ test("local marketplace exposes the plugin package", () => {
 
   assert.equal(marketplace.name, "codex-agent-bridge");
   assert.equal(marketplace.interface.displayName, "Agent Bridge");
-  assert.equal(marketplace.plugins.length, 1);
-  assert.equal(marketplace.plugins[0].name, "claude-code-bridge");
-  assert.equal(marketplace.plugins[0].source.source, "local");
-  assert.equal(marketplace.plugins[0].source.path, "./plugins/claude-code-bridge");
-  assert.equal(marketplace.plugins[0].policy.installation, "AVAILABLE");
-  assert.equal(marketplace.plugins[0].category, "Developer Tools");
-  assert.equal(Object.hasOwn(marketplace.plugins[0], "interface"), false);
+  assert.equal(marketplace.plugins.length, 2);
 
-  const pluginManifestPath = path.join(marketplace.plugins[0].source.path, ".codex-plugin/plugin.json");
-  const plugin = readJson(pluginManifestPath);
-  assert.equal(path.resolve(root, marketplace.plugins[0].source.path), pluginRoot);
-  assert.equal(plugin.interface.displayName, "Claude Code Bridge");
-  assert.equal(plugin.interface.category, "Developer Tools");
+  const claudeEntry = marketplace.plugins.find((plugin) => plugin.name === "claude-code-bridge");
+  const antigravityEntry = marketplace.plugins.find((plugin) => plugin.name === "antigravity-bridge");
+  assert.ok(claudeEntry);
+  assert.ok(antigravityEntry);
+
+  for (const [entry, expectedRoot, displayName] of [
+    [claudeEntry, pluginRoot, "Claude Code Bridge"],
+    [antigravityEntry, antigravityPluginRoot, "Antigravity Bridge"]
+  ]) {
+    assert.equal(entry.source.source, "local");
+    assert.equal(entry.policy.installation, "AVAILABLE");
+    assert.equal(entry.category, "Developer Tools");
+    assert.equal(Object.hasOwn(entry, "interface"), false);
+
+    const pluginManifestPath = path.join(entry.source.path, ".codex-plugin/plugin.json");
+    const plugin = readJson(pluginManifestPath);
+    assert.equal(path.resolve(root, entry.source.path), expectedRoot);
+    assert.equal(plugin.interface.displayName, displayName);
+    assert.equal(plugin.interface.category, "Developer Tools");
+  }
+  assert.equal(claudeEntry.source.path, "./plugins/claude-code-bridge");
+  assert.equal(antigravityEntry.source.path, "./plugins/antigravity-bridge");
 });
 
 test("claude plugin carries a single-plugin marketplace for sparse install", () => {
@@ -180,6 +233,43 @@ test("claude plugin carries a single-plugin marketplace for sparse install", () 
   assert.equal(marketplace.plugins[0].source.source, "local");
   assert.equal(marketplace.plugins[0].source.path, "./");
   assert.equal(marketplace.plugins[0].category, "Developer Tools");
+});
+
+test("antigravity plugin carries a single-plugin marketplace for sparse install", () => {
+  const marketplace = readJson("plugins/antigravity-bridge/.agents/plugins/marketplace.json");
+
+  assert.equal(marketplace.name, "antigravity-bridge");
+  assert.equal(marketplace.interface.displayName, "Antigravity Bridge");
+  assert.equal(marketplace.plugins.length, 1);
+  assert.equal(marketplace.plugins[0].name, "antigravity-bridge");
+  assert.equal(marketplace.plugins[0].source.source, "local");
+  assert.equal(marketplace.plugins[0].source.path, "./");
+  assert.equal(marketplace.plugins[0].category, "Developer Tools");
+});
+
+test("antigravity skill docs pin sandbox defaults and write-enabled rescue boundary", () => {
+  const combined = antigravitySkillFiles.map(read).join("\n");
+  const plan = read("plugins/antigravity-bridge/skills/antigravity-plan/SKILL.md");
+  const review = read("plugins/antigravity-bridge/skills/antigravity-review/SKILL.md");
+  const rescue = read("plugins/antigravity-bridge/skills/antigravity-rescue/SKILL.md");
+
+  assert.match(plan, /Planning is read-only/);
+  assert.match(plan, /`--sandbox`/);
+  assert.match(plan, /Do not pass `--model`/);
+  assert.doesNotMatch(plan, /dontAsk|Read,Glob,Grep/);
+  assert.doesNotMatch(plan, /--write/);
+
+  assert.match(review, /Normal review and adversarial review are read-only/);
+  assert.match(review, /Do not fix issues/);
+  assert.match(review, /`--sandbox`/);
+  assert.doesNotMatch(review, /--write/);
+
+  assert.match(rescue, /Rescue defaults to read-only investigation/);
+  assert.match(rescue, /--write/);
+  assert.match(rescue, /explicitly requested by the user/);
+  assert.match(combined, /ANTIGRAVITY_COMPANION_AGY_BIN/);
+  assert.match(combined, /--dangerously-skip-permissions/);
+  assert.doesNotMatch(combined, /\.claude\/local\/claude/);
 });
 
 test("skill docs pin read-only defaults and write-enabled rescue boundary", () => {

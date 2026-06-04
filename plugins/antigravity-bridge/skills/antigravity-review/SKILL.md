@@ -1,0 +1,99 @@
+---
+name: antigravity-review
+description: Use when the user wants Antigravity, through Antigravity Bridge, to review code, review risks, or adversarially challenge an implementation or design from inside Codex.
+---
+
+# Antigravity Review
+
+Use this skill to delegate read-only review to Antigravity through the Antigravity Bridge CLI. The companion is a CLI-only plugin surface; do not start, configure, or invent MCP behavior.
+
+## When To Use
+
+- Use `review` when the user asks Antigravity to review current changes, a working tree, a branch diff, or implementation risk.
+- Use `adversarial-review` when the user asks Antigravity to challenge assumptions, design direction, tradeoffs, rollback, data loss paths, race conditions, or alternatives.
+- Prefer foreground for narrow diffs and background for broad branch reviews or deep adversarial review.
+
+## When Not To Use
+
+- Do not use for trivial local checks that Codex can inspect directly.
+- Do not use when Antigravity is missing or setup reports `ready: false`; run setup and report the blocker instead.
+- Do not use when the user asked not to delegate or not to use Antigravity.
+- Do not send secrets, credentials, private keys, tokens, or sensitive prompts when delegation would be unsafe.
+
+## Safety Defaults
+
+- Normal review and adversarial review are read-only.
+- Do not fix issues, apply patches, create commits, or continue into implementation in the same delegated review.
+- Do not automatically apply Antigravity output, stage files, create commits, or push changes from review flows.
+- Do not pass `--model`; local `agy` 1.0.4 does not expose a model flag through this bridge.
+- Do not add `--timeout` or `--timeout-ms` by default. These flags are hard stops for explicit user time budgets, smoke tests, or deliberate cancellation probes only.
+- For broad branch reviews, large diffs, or deep adversarial review, use `--background --json` and report the job id.
+- Do not use MCP, `--mcp-config`, dangerous bypass flags, or `--permission-mode bypassPermissions`.
+- Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
+- Do not disable sandboxing in read mode; normal review uses pre-collected git context and the companion's `--sandbox` default.
+
+## Setup Check
+
+Before the first delegated review in a workspace, run:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" setup --json
+```
+
+If setup reports a missing Antigravity binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/agy`, `/opt/homebrew/bin/agy`, and `/usr/local/bin/agy`; when one exists, rerun the companion with command-scoped `ANTIGRAVITY_COMPANION_AGY_BIN="$AGY_BIN"` for that call. If no binary is found, report that blocker and do not delegate the review.
+
+## Commands
+
+Machine-readable working tree review:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" review --json --scope working-tree
+```
+
+Branch review against a base ref:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" review --json --scope branch --base "$BASE_REF"
+```
+
+Adversarial review with a focus prompt:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" adversarial-review --json --scope auto --prompt "$FOCUS"
+```
+
+For long-running review:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" review --background --json --scope branch --base "$BASE_REF"
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" adversarial-review --background --json --scope auto --prompt "$FOCUS"
+```
+
+Use `--wait` when the job should be tracked and Codex should wait for completion:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" review --wait --json --scope working-tree
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" adversarial-review --wait --json --scope auto --prompt "$FOCUS"
+```
+
+After a background job starts, report the job id and use:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" status "$JOB_ID" --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" result "$JOB_ID" --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" cancel "$JOB_ID" --json
+```
+
+If the background or waited job was started with `--cwd "$WORKSPACE"`, pass the same `--cwd "$WORKSPACE"` to `status`, `result`, and `cancel`.
+
+When many companion jobs exist, a storage quota error blocks a new background job, or a result includes `metadata.storage.truncated`, inspect storage before starting more delegated work:
+
+```bash
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" storage --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" cleanup --dry-run --json
+node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" cleanup --all --dry-run --json
+```
+
+Do not request unbounded raw logs. Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has been inspected first.
+
+Present findings first, preserve file paths and line numbers, and keep the result as review output. If the user wants fixes, ask for or wait for an explicit implementation instruction.

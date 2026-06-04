@@ -767,7 +767,7 @@ test("cancel reports missing jobs, rejects invalid ids, and cancels running jobs
   const stateDir = makeTempDir("background-cancel-state-");
   const launch = await runCli(["rescue", "--background", "--json", "cancel", "slow"], {
     stateDir,
-    env: { FAKE_CLAUDE_SLEEP_MS: "10000" }
+    env: { FAKE_CLAUDE_SLEEP_MS: "30000" }
   });
   assert.equal(launch.status, 0);
   const jobId = JSON.parse(launch.stdout).job.id;

@@ -1,17 +1,18 @@
 # Agent Instructions
 
-This repository builds an Agent Bridge Codex marketplace. The marketplace can expose multiple agent-specific plugins; the current shipped plugin is Claude Code Bridge for planning, review, adversarial review, and explicitly write-enabled rescue work.
+This repository builds an Agent Bridge Codex marketplace. The marketplace exposes multiple agent-specific plugins. The shipped plugins are Claude Code Bridge and Antigravity Bridge for planning, review, adversarial review, and explicitly write-enabled rescue work.
 
 ## Core Rules
 
-- Keep every plugin CLI-only. Do not add MCP servers or `mcpServers` to `plugins/claude-code-bridge/.codex-plugin/plugin.json`.
+- Keep every plugin CLI-only. Do not add MCP servers or `mcpServers` to any `.codex-plugin/plugin.json`.
 - Skills must invoke the companion through `node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs"`.
+- Antigravity skills must invoke the companion through `node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs"`.
 - Do not invoke the companion through a bare relative script path in README, skills, or tests.
 - Keep marketplace, plugin, and agent boundaries distinct. Do not route multiple agents through one generic plugin by keyword matching.
 - `plan`, `review`, and `adversarial-review` must remain read-only.
 - `rescue` must remain read-only unless the user explicitly requested file edits and the command uses `--write`.
-- Do not add Claude bypass behavior or allow `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, or `--permission-mode bypassPermissions`.
-- Companion flows must not automatically apply Claude output, stage files, create commits, or push changes.
+- Do not add Claude or Antigravity bypass behavior or allow `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, or `--permission-mode bypassPermissions`.
+- Companion flows must not automatically apply delegated output, stage files, create commits, or push changes.
 
 ## Background Job Rules
 
@@ -19,8 +20,8 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 - If a worker cannot start, persist a failed job result instead of leaving a permanent queued job.
 - Reconcile stale queued/running jobs to failed results.
 - For jobs started with `--cwd`, `status`, `result`, and `cancel` must support the same `--cwd`.
-- Keep job state outside the reviewed project. Preserve the state root priority: `CLAUDE_COMPANION_STATE_DIR`, `CODEX_PLUGIN_DATA`, `CLAUDE_PLUGIN_DATA`, then OS temp.
-- Keep stored job artifacts bounded. Result and log caps are archival caps only; do not truncate prompts, review context, or stdout before Claude JSON parsing.
+- Keep job state outside the reviewed project. Preserve each plugin's state root priority. Claude uses `CLAUDE_COMPANION_STATE_DIR`, `CODEX_PLUGIN_DATA`, `CLAUDE_PLUGIN_DATA`, then OS temp. Antigravity uses `ANTIGRAVITY_COMPANION_STATE_DIR`, `CODEX_PLUGIN_DATA`, `ANTIGRAVITY_PLUGIN_DATA`, then OS temp.
+- Keep stored job artifacts bounded. Result and log caps are archival caps only; do not truncate prompts, review context, or stdout before delegated output parsing.
 - Preserve active jobs during cleanup. `queued` and `running` jobs must not be deleted by cleanup.
 - Preserve explicitly selected result jobs while reading results.
 - Keep truncation metadata visible through `metadata.storage`.
@@ -29,18 +30,22 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace can ex
 ## Documentation Rules
 
 - README must document installation, Codex usage, direct CLI usage, safety model, background jobs, state storage, tests, troubleshooting, and repository layout.
-- README and all skills must mention the `$CLAUDE_PLUGIN_ROOT` command path.
+- README and Claude skills must mention the `$CLAUDE_PLUGIN_ROOT` command path.
+- README and Antigravity skills must mention the `$ANTIGRAVITY_PLUGIN_ROOT` command path.
 - README installation docs must cover both Codex App UI fields and Codex CLI commands.
 - README installation docs must use the main branch as the install ref, not a development branch.
 - README installation docs must cover full marketplace installation and single-plugin sparse installation.
 - README and skills must stay consistent for `--background`, `--wait`, `--cwd`, `status`, `result`, `cancel`, `storage`, and `cleanup`.
 - If the user specifies a Claude Code model, pass it with `--model`. Short aliases such as `opus` or `sonnet` must be passed through as model values. If the user does not specify a model, omit `--model` so Claude Code uses its own default model.
+- Do not document or pass `--model` for Antigravity Bridge unless local `agy` exposes a supported model flag and tests are updated.
 - Skills must tell Codex agents not to add `--timeout` or `--timeout-ms` by default. Expected long-running delegated work should use `--background --json`; timeout flags are only for explicit user time budgets, smoke tests, or deliberate cancellation-style probes.
 - Skills must tell Codex agents: Do not ask users to edit shell PATH. If setup reports a missing Claude binary, agents should check common local install locations and use command-scoped `CLAUDE_COMPANION_CLAUDE_BIN` for the retry.
+- Antigravity skills must tell Codex agents: Do not ask users to edit shell PATH. If setup reports a missing `agy` binary, agents should check common local install locations and use command-scoped `ANTIGRAVITY_COMPANION_AGY_BIN` for the retry.
 - Skills must tell Codex agents to inspect `storage --json` or `cleanup --dry-run --json` when many jobs exist, storage warnings appear, or quota errors block background work. Broad `cleanup --all` must be preceded by `cleanup --all --dry-run --json`.
 - Marketplace and plugin manifests must use a Codex App-visible category such as `Developer Tools`; do not invent categories like `Coding`.
-- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`.
+- Keep `.agents/plugins/marketplace.json` valid when changing plugin name, display name, or repository layout. This is a multi-plugin marketplace repository; the root marketplace entry for Claude Code Bridge must point to `./plugins/claude-code-bridge`, and the root marketplace entry for Antigravity Bridge must point to `./plugins/antigravity-bridge`.
 - Keep each installable plugin's plugin-local marketplace valid for single-plugin sparse installation. For Claude Code Bridge, `plugins/claude-code-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.
+- For Antigravity Bridge, `plugins/antigravity-bridge/.agents/plugins/marketplace.json` must use `source.path = "./"`.
 - Do not document personal marketplace copying or `--sparse .agents/plugins` installation for this repository.
 - Update `tests/skills.test.mjs` when changing README or skill behavior.
 
@@ -55,4 +60,5 @@ git diff --check
 git status --short
 ```
 
-For CLI smoke testing, use `tests/fake-claude-fixture.mjs` through `CLAUDE_COMPANION_CLAUDE_BIN`.
+For Claude CLI smoke testing, use `tests/fake-claude-fixture.mjs` through `CLAUDE_COMPANION_CLAUDE_BIN`.
+For Antigravity CLI smoke testing, use `tests/fake-agy-fixture.mjs` through `ANTIGRAVITY_COMPANION_AGY_BIN`.
