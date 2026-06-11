@@ -14,6 +14,12 @@ This repository builds an Agent Bridge Codex marketplace. The marketplace expose
 - Do not add Claude or Antigravity bypass behavior or allow `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, or `--permission-mode bypassPermissions`.
 - Companion flows must not automatically apply delegated output, stage files, create commits, or push changes.
 
+## Codex Invocation Rules
+
+- Codex agents invoking Bridge companion commands must request `sandbox_permissions: "require_escalated"` on the first attempt. Do not run Bridge companion commands in the default Codex sandbox first and retry after sandbox failure.
+- A user's explicit request to use a Bridge is delegation authorization for the named Bridge and current task. Do not ask for a second delegation confirmation unless the workspace is ambiguous, the request would expose secrets or credentials, scope expands beyond the user request, or write-enabled rescue was not explicitly requested.
+- Do not run `setup --json`, `claude auth status`, or `agy --version` before every delegation. Assume the bridge is already installed and authenticated unless a companion command reports a missing binary, authentication failure, unusable state, or the user explicitly asks for a setup check.
+
 ## Background Job Rules
 
 - Preserve terminal job states. A worker must not overwrite a cancelled, failed, or completed job.

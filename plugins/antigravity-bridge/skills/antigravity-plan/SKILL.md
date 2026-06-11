@@ -10,12 +10,13 @@ Use this skill to delegate planning to Antigravity through the Antigravity Bridg
 ## When To Use
 
 - Use when the user asks Codex to ask Antigravity or Antigravity for a plan, architecture, design, spec, rollout strategy, risk pass, or implementation sequence.
-- Use when a broad design question benefits from an independent Antigravity planning pass over the current workspace.
-- Prefer foreground for small planning requests and background for broad repo planning, multi-step architecture work, or long risk reviews.
+- Use when a bounded design question benefits from an independent Antigravity planning pass over specific repository context.
+- Prefer foreground for small planning requests and background for multi-step architecture work or long risk reviews.
 
 ## When Not To Use
 
 - Do not use for trivial local tasks that Codex can answer or execute directly.
+- Do not use for open-ended whole-repository understanding, inventory, or project orientation. Prefer Codex local inspection or Claude Code Bridge for that workflow.
 - Do not use when Antigravity is missing or setup reports `ready: false`; run setup and report the blocker instead.
 - Do not use when the user asked not to delegate or not to use Antigravity.
 - Do not send secrets, credentials, private keys, tokens, or sensitive prompts when delegation would be unsafe.
@@ -23,6 +24,7 @@ Use this skill to delegate planning to Antigravity through the Antigravity Bridg
 ## Safety Defaults
 
 - Planning is read-only.
+- Antigravity CLI does not expose a native plan-only mode. The companion `plan` command is a bridge wrapper around `agy --print`, `--sandbox`, isolated workspace setup, and post-run auditing.
 - The companion plan command uses Antigravity CLI print mode with `--sandbox` inside a disposable isolated workspace snapshot.
 - Treat `--sandbox` as one layer only. The bridge protects the real project by running read-only planning in an isolated snapshot and failing the result if Antigravity changes files there.
 - Do not ask Antigravity to edit files, create commits, or run write commands.
@@ -34,9 +36,15 @@ Use this skill to delegate planning to Antigravity through the Antigravity Bridg
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not disable sandboxing or isolated-workspace behavior in read mode; the companion plan command owns those defaults.
 
+## Codex Execution Defaults
+
+- Bridge companion commands call local CLIs, plugin state, and user-selected workspaces. When invoking the companion through Codex tool execution, use `sandbox_permissions: "require_escalated"` on the first attempt. Do not run the companion in the default Codex sandbox first and retry after sandbox failure.
+- An explicit user request to use this Bridge for the current task is enough delegation authorization. Do not ask for a second confirmation before calling the Bridge. Ask only if the target workspace is ambiguous, the request would expose secrets or credentials, the scope expands beyond the user request, or write-enabled rescue was not explicitly requested.
+- Do not run `setup --json` or raw auth/version checks before every delegation. Assume the Bridge is installed and authenticated unless a companion command fails, the user asks for a setup check, or there is concrete evidence that local setup changed.
+
 ## Setup Check
 
-Before the first delegation in a workspace, or when Antigravity setup may have changed, run:
+Use setup only when the user asks to check setup, during installation verification, after a companion command reports a missing binary, authentication failure, or unusable state, or when there is concrete evidence that Antigravity setup changed:
 
 ```bash
 node "$ANTIGRAVITY_PLUGIN_ROOT/scripts/antigravity-companion.mjs" setup --json

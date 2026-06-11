@@ -150,6 +150,9 @@ test("README command surface uses plugin root and lists all skills", () => {
   assert.match(readme, /node "\$ANTIGRAVITY_PLUGIN_ROOT\/scripts\/antigravity-companion\.mjs" rescue --write --resume --json/);
   assert.match(readme, /Antigravity `rescue --write --resume` passes `agy --continue`/);
   assert.match(readme, /read-only `rescue --resume` is rejected/);
+  assert.match(readme, /Antigravity CLI does not expose a native plan-only mode/);
+  assert.match(readme, /Do not treat it as a broad repository-understanding tool/);
+  assert.match(readme, /not intended for open-ended whole-repository understanding/);
   assert.match(readme, /ANTIGRAVITY_COMPANION_AGY_BIN/);
   assert.match(readme, /ANTIGRAVITY_COMPANION_MAX_STATE_BYTES/);
   assert.match(readme, /agyPid/);
@@ -179,6 +182,9 @@ test("AGENTS guide documents maintenance invariants", () => {
   assert.match(guide, /Codex App UI fields and Codex CLI commands/);
   assert.match(guide, /main branch as the install ref/);
   assert.match(guide, /not to add `--timeout` or `--timeout-ms` by default/);
+  assert.match(guide, /sandbox_permissions: "require_escalated"/);
+  assert.match(guide, /explicit request to use a Bridge is delegation authorization/);
+  assert.match(guide, /Do not run `setup --json`, `claude auth status`, or `agy --version` before every delegation/);
   assert.match(guide, /If the user specifies a Claude Code model, pass it with `--model`/);
   assert.match(guide, /Short aliases such as `opus` or `sonnet` must be passed through as model values/);
   assert.match(guide, /If the user does not specify a model, omit `--model`/);
@@ -242,6 +248,8 @@ test("antigravity skill docs pin sandbox defaults and write-enabled rescue bound
   const rescue = read("plugins/antigravity-bridge/skills/antigravity-rescue/SKILL.md");
 
   assert.match(plan, /Planning is read-only/);
+  assert.match(plan, /Antigravity CLI does not expose a native plan-only mode/);
+  assert.match(plan, /Do not use for open-ended whole-repository understanding/);
   assert.match(plan, /`--sandbox`/);
   assert.match(plan, /disposable isolated workspace snapshot/);
   assert.match(plan, /If the user explicitly requests an Antigravity model, pass it with `--model <model>`/);
@@ -296,6 +304,36 @@ test("skill docs include critical safety exclusions", () => {
   assert.match(combined, /--dangerously-bypass-approvals-and-sandbox/);
   assert.match(combined, /--permission-mode bypassPermissions/);
   assert.match(combined, /broad shell or git write tools in read mode/);
+});
+
+test("bridge docs pin Codex execution and delegation defaults", () => {
+  const readme = read("README.md");
+  const allSkillFiles = [...skillFiles, ...antigravitySkillFiles];
+
+  assert.match(readme, /sandbox_permissions: "require_escalated"/);
+  assert.match(readme, /Do not run Bridge companion commands in the default Codex sandbox first and retry after sandbox failure/);
+  assert.match(readme, /A user request that explicitly names Claude Code Bridge, Claude Code, Antigravity Bridge, or Antigravity is sufficient authorization/);
+  assert.match(readme, /Do not ask for a second delegation confirmation/);
+  assert.match(readme, /Do not run `setup --json`, `claude auth status`, or `agy --version` before every delegation/);
+  assert.match(readme, /Assume the bridge is already installed and authenticated unless a companion command reports otherwise/);
+
+  for (const file of allSkillFiles) {
+    const body = read(file);
+    assert.match(body, /sandbox_permissions: "require_escalated"/, file);
+    assert.match(
+      body,
+      /Do not run the companion in the default Codex sandbox first and retry after sandbox failure/,
+      file
+    );
+    assert.match(
+      body,
+      /An explicit user request to use this Bridge for the current task is enough delegation authorization/,
+      file
+    );
+    assert.match(body, /Do not ask for a second confirmation before calling the Bridge/, file);
+    assert.match(body, /Do not run `setup --json` or raw auth\/version checks before every delegation/, file);
+    assert.match(body, /Assume the Bridge is installed and authenticated unless a companion command fails/, file);
+  }
 });
 
 test("skill docs document Claude model selection policy", () => {

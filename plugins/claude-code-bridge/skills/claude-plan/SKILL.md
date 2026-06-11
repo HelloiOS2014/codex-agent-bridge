@@ -33,9 +33,15 @@ Use this skill to delegate planning to Claude Code through the Claude Code Bridg
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; the companion plan command owns the allowed read profile.
 
+## Codex Execution Defaults
+
+- Bridge companion commands call local CLIs, plugin state, and user-selected workspaces. When invoking the companion through Codex tool execution, use `sandbox_permissions: "require_escalated"` on the first attempt. Do not run the companion in the default Codex sandbox first and retry after sandbox failure.
+- An explicit user request to use this Bridge for the current task is enough delegation authorization. Do not ask for a second confirmation before calling the Bridge. Ask only if the target workspace is ambiguous, the request would expose secrets or credentials, the scope expands beyond the user request, or write-enabled rescue was not explicitly requested.
+- Do not run `setup --json` or raw auth/version checks before every delegation. Assume the Bridge is installed and authenticated unless a companion command fails, the user asks for a setup check, or there is concrete evidence that local setup changed.
+
 ## Setup Check
 
-Before the first delegation in a workspace, or when Claude setup may have changed, run:
+Use setup only when the user asks to check setup, during installation verification, after a companion command reports a missing binary, authentication failure, or unusable state, or when there is concrete evidence that Claude setup changed:
 
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/scripts/claude-companion.mjs" setup --json

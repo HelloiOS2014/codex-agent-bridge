@@ -30,6 +30,12 @@ Use this skill to check setup and manage Claude Code Bridge background or waited
 - Never add `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, or `--dangerously-bypass-approvals-and-sandbox`.
 - Do not grant broad shell or git write tools in read mode; job management should only call the companion CLI commands below.
 
+## Codex Execution Defaults
+
+- Bridge companion commands call local CLIs, plugin state, and user-selected workspaces. When invoking the companion through Codex tool execution, use `sandbox_permissions: "require_escalated"` on the first attempt. Do not run the companion in the default Codex sandbox first and retry after sandbox failure.
+- An explicit user request to use this Bridge for the current task is enough delegation authorization. Do not ask for a second confirmation before calling the Bridge. Ask only if the target workspace is ambiguous, the request would expose secrets or credentials, the scope expands beyond the user request, or write-enabled rescue was not explicitly requested.
+- Do not run `setup --json` or raw auth/version checks before every delegation. Assume the Bridge is installed and authenticated unless a companion command fails, the user asks for a setup check, or there is concrete evidence that local setup changed.
+
 ## Commands
 
 Setup check:
@@ -102,7 +108,7 @@ Do not run broad `cleanup --all` unless `cleanup --all --dry-run --json` has bee
 
 ## Handling Output
 
-For `setup --json`, treat `ready: true` as usable. If setup reports a missing Claude binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/claude`, `$HOME/.claude/local/claude`, `/opt/homebrew/bin/claude`, and `/usr/local/bin/claude`; when one exists, rerun the companion with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_BIN"` for that call. If no binary is found, authentication is missing, or the state directory is unusable, report that blocker and do not start delegated work.
+For `setup --json`, treat `ready: true` as usable. Use setup only when the user asks to check setup, during installation verification, after a companion command reports a missing binary, authentication failure, or unusable state, or when there is concrete evidence that Claude setup changed. If setup reports a missing Claude binary, do not ask the user to edit shell PATH. First check common local install locations such as `$HOME/.local/bin/claude`, `$HOME/.claude/local/claude`, `/opt/homebrew/bin/claude`, and `/usr/local/bin/claude`; when one exists, rerun the companion with command-scoped `CLAUDE_COMPANION_CLAUDE_BIN="$CLAUDE_BIN"` for that call. If no binary is found, authentication is missing, or the state directory is unusable, report that blocker and do not start delegated work.
 
 For `status --json`, report running jobs, the latest finished job, and the relevant job id. For `result --json`, preserve paths, line numbers, findings, changed-file summaries, verification, errors, and residual risk; if the selected job is queued or running and `metadata.resultAvailable` is `false`, say the result is not ready instead of calling it failed. For `cancel --json`, report whether cancellation was signalled, whether TERM or KILL was used, whether the known process ids exited, and whether the job is now cancelled.
 

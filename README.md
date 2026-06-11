@@ -157,6 +157,14 @@ Use these request patterns in Codex:
 - Antigravity rescue: "Ask Antigravity to fix this issue", "让 Antigravity 修复这个问题".
 - Antigravity job handling: "Check the Antigravity job status", "Show the last Antigravity result", "Cancel that Antigravity job".
 
+Agent invocation defaults:
+
+- Bridge companion commands call local CLIs, plugin state, and user-selected workspaces. In Codex tool execution, request `sandbox_permissions: "require_escalated"` on the first companion command. Do not run Bridge companion commands in the default Codex sandbox first and retry after sandbox failure.
+- A user request that explicitly names Claude Code Bridge, Claude Code, Antigravity Bridge, or Antigravity is sufficient authorization to delegate the named task to that Bridge. Do not ask for a second delegation confirmation unless the target workspace is ambiguous, the request would expose secrets or credentials, the scope expands beyond the user request, or write-enabled rescue was not explicitly requested.
+- Do not run `setup --json`, `claude auth status`, or `agy --version` before every delegation. Assume the bridge is already installed and authenticated unless a companion command reports otherwise, the user asks for a setup check, or there is concrete evidence that local setup changed.
+
+Antigravity CLI does not expose a native plan-only mode. Antigravity Bridge `plan` is a bridge command implemented with `agy --print --sandbox`, isolated workspace setup, and post-run auditing. Use it for bounded architecture, sequencing, risk, and implementation-strategy prompts. Do not treat it as a broad repository-understanding tool; for open-ended repo inventory and project orientation, prefer Codex local inspection or Claude Code Bridge.
+
 Skill mapping:
 
 | Skill | Purpose | Default write access |
@@ -324,6 +332,7 @@ Cleanup never removes `queued` or `running` jobs. Explicit `result <job-id>` rea
 - `plan`, `review`, and `adversarial-review` are read-only companion commands.
 - `plan` uses Claude Code's non-interactive `dontAsk` permission mode with the read-only `Read,Glob,Grep` tool profile.
 - Antigravity read-only commands use `agy --print` with `--sandbox` inside a disposable isolated workspace. `plan` and read-only `rescue` receive a git-backed or copied snapshot; `review` and `adversarial-review` run in a scratch cwd with pre-collected git context. If Antigravity changes the isolated workspace, the companion marks the run failed and reports `touchedFiles`.
+- Antigravity `plan` is not a native `agy` plan mode and cannot force Antigravity into plan-only behavior. The bridge protects the real project and classifies isolated workspace writes as failure.
 - Antigravity `--sandbox` is not treated as a complete read-only guarantee; the isolated workspace and post-run audit are the bridge boundary.
 - `rescue` is read-only unless `--write` is present.
 - `rescue --write` is only for explicit user requests to edit or implement.
@@ -406,6 +415,7 @@ ANTIGRAVITY_COMPANION_AGY_BIN="$PWD/tests/fake-agy-fixture.mjs" \
 
 - Tests use a deterministic fake Claude fixture; they do not prove real Claude Code long-task behavior.
 - Tests use a deterministic fake agy fixture; they do not prove real Antigravity long-task behavior.
+- Antigravity Bridge is not intended for open-ended whole-repository understanding. Its strongest fit is bounded planning, review, risk analysis, and explicitly write-enabled rescue.
 - `npm run check:manifest` is a lightweight manifest check. Detailed plugin behavior is covered by `npm test`.
 - Storage caps apply to archived job output. They do not solve unbounded in-memory stdout/stderr capture while Claude is still running.
 
